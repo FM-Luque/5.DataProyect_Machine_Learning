@@ -1,0 +1,497 @@
+"""
+sp_modelado.py
+
+Caja de herramientas de Regresión & Clasificación (Machine Learning).
+
+Sigue el flujo del temario:
+
+1. PREPARAR DATOS
+    separar_xy()
+    train_test()
+    codificar_categoricas()
+    estandarizar()
+
+2. MÉTRICAS
+    metricas_regresion()
+    metricas_clasificacion()
+    comparar_train_test()
+
+3. ENTRENAR Y EVALUAR
+    entrenar_evaluar_regresion()
+    entrenar_evaluar_clasificacion()
+    predecir()
+
+4. OPTIMIZACIÓN
+    grid_search()
+
+5. INTERPRETACIÓN
+    importancia_variables()
+
+6. PRODUCCIÓN
+    guardar_modelo()
+    cargar_modelo()
+
+Los MODELOS (LinearRegression, LogisticRegression,
+DecisionTree, RandomForest, XGBoost...) se crean
+directamente con sklearn.
+
+Este módulo encapsula únicamente las tareas repetitivas.
+"""
+
+import joblib
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import (
+    train_test_split,
+    GridSearchCV
+)
+
+from sklearn.preprocessing import (
+    StandardScaler
+)
+
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+
+    confusion_matrix,
+    classification_report
+)
+
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", 2000)
+
+# ============================================================================
+# 1. PREPARACIÓN
+# ============================================================================
+
+def separar_xy(df, objetivo):
+    """
+    Separa DataFrame en X (predictoras)
+    e y (objetivo).
+    """
+
+    X = df.drop(columns=[objetivo])
+    y = df[objetivo]
+
+    return X, y
+
+
+def train_test(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42,
+    estratificar=False
+):
+    """
+    División train/test.
+    """
+
+    stratify = y if estratificar else None
+
+    return train_test_split(
+        X,
+        y,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=stratify
+    )
+
+
+def codificar_categoricas(
+    df,
+    columnas,
+    eliminar_primera=True
+):
+    """
+    One-Hot Encoding.
+    """
+
+    return pd.get_dummies(
+        df,
+        columns=columnas,
+        drop_first=eliminar_primera
+    )
+
+
+def estandarizar(
+    X_train,
+    X_test,
+    columnas=None
+):
+    """
+    Estandarización mediante StandardScaler.
+    """
+
+    scaler = StandardScaler()
+
+    X_train = X_train.copy()
+    X_test = X_test.copy()
+
+    if columnas is None:
+
+        columnas = X_train.select_dtypes(
+            include=np.number
+        ).columns
+
+    X_train[columnas] = scaler.fit_transform(
+        X_train[columnas]
+    )
+
+    X_test[columnas] = scaler.transform(
+        X_test[columnas]
+    )
+
+    return X_train, X_test, scaler
+
+
+# ============================================================================
+# 2. MÉTRICAS
+# ============================================================================
+
+def metricas_regresion(
+    y_real,
+    y_pred
+):
+    """
+    Métricas para regresión.
+    """
+
+    mse = mean_squared_error(
+        y_real,
+        y_pred
+    )
+
+    resultados = {
+        "MAE": mean_absolute_error(
+            y_real,
+            y_pred
+        ),
+        "MSE": mse,
+        "RMSE": np.sqrt(mse),
+        "R2": r2_score(
+            y_real,
+            y_pred
+        )
+    }
+
+    return resultados
+
+
+def metricas_clasificacion(
+    y_real,
+    y_pred
+):
+    """
+    Métricas para clasificación.
+    """
+
+    resultados = {
+
+        "Accuracy": accuracy_score(
+            y_real,
+            y_pred
+        ),
+
+        "Precision": precision_score(
+            y_real,
+            y_pred,
+            average="weighted",
+            zero_division=0
+        ),
+
+        "Recall": recall_score(
+            y_real,
+            y_pred,
+            average="weighted",
+            zero_division=0
+        ),
+
+        "F1": f1_score(
+            y_real,
+            y_pred,
+            average="weighted",
+            zero_division=0
+        )
+    }
+
+    print("\nMatriz de confusión:")
+    print(confusion_matrix(y_real, y_pred))
+
+    print("\nClassification Report:")
+    print(
+        classification_report(
+            y_real,
+            y_pred,
+            zero_division=0
+        )
+    )
+
+    return resultados
+
+
+def comparar_train_test(
+    modelo,
+    X_train,
+    X_test,
+    y_train,
+    y_test,
+    tipo="regresion"
+):
+    """
+    Compara métricas train/test para
+    detectar overfitting o underfitting.
+    """
+
+    pred_train = modelo.predict(X_train)
+    pred_test = modelo.predict(X_test)
+
+    if tipo == "regresion":
+
+        r2_train = r2_score(
+            y_train,
+            pred_train
+        )
+
+        r2_test = r2_score(
+            y_test,
+            pred_test
+        )
+
+        print(f"R² Train: {r2_train:.4f}")
+        print(f"R² Test : {r2_test:.4f}")
+
+    elif tipo == "clasificacion":
+
+        acc_train = accuracy_score(
+            y_train,
+            pred_train
+        )
+
+        acc_test = accuracy_score(
+            y_test,
+            pred_test
+        )
+
+        print(f"Accuracy Train: {acc_train:.4f}")
+        print(f"Accuracy Test : {acc_test:.4f}")
+
+    else:
+
+        raise ValueError(
+            "tipo debe ser "
+            "'regresion' o "
+            "'clasificacion'"
+        )
+
+
+# ============================================================================
+# 3. ENTRENAMIENTO Y EVALUACIÓN
+# ============================================================================
+
+def entrenar_evaluar_regresion(
+    modelo,
+    X_train,
+    X_test,
+    y_train,
+    y_test
+):
+    """
+    Entrena y evalúa un modelo de regresión.
+    """
+
+    modelo.fit(
+        X_train,
+        y_train
+    )
+
+    pred = modelo.predict(X_test)
+
+    return metricas_regresion(
+        y_test,
+        pred
+    )
+
+
+def entrenar_evaluar_clasificacion(
+    modelo,
+    X_train,
+    X_test,
+    y_train,
+    y_test
+):
+    """
+    Entrena y evalúa un modelo de clasificación.
+    """
+
+    modelo.fit(
+        X_train,
+        y_train
+    )
+
+    pred = modelo.predict(X_test)
+
+    return metricas_clasificacion(
+        y_test,
+        pred
+    )
+
+
+def predecir(
+    modelo,
+    X
+):
+    """
+    Realiza predicciones con un modelo
+    previamente entrenado.
+    """
+
+    return modelo.predict(X)
+
+
+# ============================================================================
+# 4. OPTIMIZACIÓN
+# ============================================================================
+
+def grid_search(
+    modelo,
+    param_grid,
+    X_train,
+    y_train,
+    cv=5,
+    scoring=None
+):
+    """
+    Optimización mediante GridSearchCV.
+    """
+
+    grid = GridSearchCV(
+        estimator=modelo,
+        param_grid=param_grid,
+        cv=cv,
+        scoring=scoring,
+        n_jobs=-1
+    )
+
+    grid.fit(
+        X_train,
+        y_train
+    )
+
+    print("\nMejores parámetros:")
+    print(grid.best_params_)
+
+    return grid.best_estimator_
+
+
+# ============================================================================
+# 5. INTERPRETACIÓN
+# ============================================================================
+
+def importancia_variables(
+    modelo,
+    columnas,
+    top_n=15
+):
+    """
+    Soporta:
+
+    - coef_ (modelos lineales: LinearRegression, LogisticRegression,
+      Ridge, Lasso...) -> se ordena por magnitud absoluta, pero se
+      muestra el coeficiente CON SU SIGNO, para poder distinguir si
+      la relación es positiva (a más X, más y) o negativa (a más X,
+      menos y). Perder el signo perdería justo esa información.
+
+    - feature_importances_ (árboles: DecisionTree, RandomForest,
+      GradientBoosting...) -> siempre positivo, no tiene signo
+      (no indica dirección, solo cuánto pesa la variable).
+    """
+
+    if hasattr(modelo, "coef_"):
+
+        valores = np.ravel(modelo.coef_)  # con signo, sin abs()
+
+    elif hasattr(
+        modelo,
+        "feature_importances_"
+    ):
+
+        valores = modelo.feature_importances_
+
+    else:
+
+        raise ValueError(
+            "Modelo sin coef_ ni feature_importances_"
+        )
+
+    imp = pd.DataFrame({
+        "variable": columnas,
+        "importancia": valores
+    })
+
+    imp["abs"] = imp["importancia"].abs()
+
+    imp = imp.sort_values(
+        by="abs",
+        ascending=False
+    ).drop(columns="abs").head(top_n)
+
+    colores = ["#d62728" if v < 0 else "#1f77b4" for v in imp["importancia"]]
+
+    plt.figure(figsize=(8, 5))
+
+    plt.barh(
+        imp["variable"],
+        imp["importancia"],
+        color=colores
+    )
+
+    plt.gca().invert_yaxis()
+    plt.axvline(0, color="black", linewidth=0.8)
+
+    plt.title(
+        "Importancia de Variables"
+    )
+
+    plt.tight_layout()
+
+    plt.show()
+
+    return imp
+
+
+# ============================================================================
+# 6. PRODUCCIÓN
+# ============================================================================
+
+def guardar_modelo(
+    modelo,
+    ruta
+):
+    """
+    Guarda un modelo en formato .pkl
+    """
+
+    joblib.dump(
+        modelo,
+        ruta
+    )
+
+
+def cargar_modelo(
+    ruta
+):
+    """
+    Carga un modelo .pkl
+    """
+
+    return joblib.load(ruta)
