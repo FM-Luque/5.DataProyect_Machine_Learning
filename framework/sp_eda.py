@@ -1103,4 +1103,4 @@ def corr_objetivo(df, target):
     print(corr.round(3))
 
     return None
-
+# Si queremos graficar, cambiar None por corr
