@@ -553,7 +553,10 @@ def entrenar_final(modelo, X, y):
     modelo : instancia de sklearn ya elegida (sin entrenar, o se
         reentrena igualmente sobre el 100% del dato).
     X, y : dataset COMPLETO (no X_train/y_train).
-
+    
+    X = X_reg_completo = pd.concat([X_train_reg, X_test_reg])
+    y =y_reg_completo = pd.concat([y_train_reg, y_test_reg])
+    
     Returns
     -------
     El modelo, ya entrenado con todos los datos.
