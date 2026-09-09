@@ -27,6 +27,7 @@ Sigue el flujo del temario:
 
 5. INTERPRETACIÓN
     importancia_variables()
+    simular_variable( )
 
 6. PRODUCCIÓN
     entrenar_final()
@@ -525,6 +526,15 @@ def importancia_variables(
 
     return imp
 
+def simular_variable(modelo, X, columna, valores):
+    """
+    Simula cómo cambia la predicción del modelo al variar UNA columna,
+    dejando el resto fijas en su valor medio.
+    """
+    X_simulado = pd.DataFrame([X.mean()] * len(valores))
+    X_simulado[columna] = valores
+    predicciones = modelo.predict(X_simulado)
+    return pd.DataFrame({columna: valores, 'prediccion': predicciones.round(2)})
 
 # ============================================================================
 # 6. PRODUCCIÓN
