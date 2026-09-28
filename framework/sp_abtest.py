@@ -6,11 +6,11 @@ Caja de herramientas de Fase 4 — Análisis Inferencial.
 Tres bloques:
 
   0) EXPLORACIÓN INICIAL:
-     clasificar_columnas() / exploracion_df_abtest()
+     clasificar_columnas() / exploracion_grupos()
 
   1) FLUJO DE COMPARACIÓN DE GRUPOS (sigue el diagrama ampliado):
-     normalidad -> homocedasticidad -> nº de grupos -> test
-     normalidad() / homocedasticidad() / ttest_dos_grupos() / mannwhitneyu()
+     normalidad() -> homocedasticidad_resumen()/
+     / ttest_dos_grupos() / mannwhitneyu()
      / anova_tukey() / kruskal() / decidir_test()
 
   2) ANEXO — tests de relación entre variables (no comparan grupos):
@@ -22,13 +22,25 @@ Todas las funciones asumen que le pasas el DataFrame ya al nivel correcto
 Repasa la Guía de claves antes de decidir qué tabla usar.
 """
 
+# Tratamiento de Datos
 import pandas as pd
+import numpy as np
 from IPython.display import display
+
+# Visualizaciones
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 import scipy.stats as stats
 import statsmodels.formula.api as smf
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
+# Para que se muestren todas las columnas al inspeccionar los DataFrames
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 2000)
+pd.set_option('display.expand_frame_repr', False)
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
 
 # ============================================================================
 # 0. EXPLORACIÓN INICIAL
@@ -113,29 +125,104 @@ def clasificar_columnas(df, max_categorias_control=15, min_unicos_metrica=15):
 
 
     # ============================================================================
-    # 2. EXPLORACIÓN ABTEST
+    # 2. EXPLORACIÓN DE GRUPOS 
     # ============================================================================
 
-def exploracion_df_abtest(df, col_control):
-    """Describe por separado las columnas categóricas y numéricas para cada
-    valor de col_control. Útil como primer vistazo antes de testear nada."""
+def exploracion_grupos(df, col_control, metricas):
+    """
+    Compara métricas numéricas entre los grupos definidos por una columna
+    de control. Devuelve una tabla resumida mucho más útil para el análisis
+    inferencial que un describe() completo.
 
-    for categoria in df[col_control].unique():
-        df_filtrado = df[df[col_control] == categoria]
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame a analizar.
 
-        print(
-            f'Los principales estadísticos de las columnas '
-            f'categóricas para el grupo {categoria.upper()} son'
+    col_control : str
+        Columna categórica que define los grupos
+        (ej: sexo, embarque, acompanado, titulo).
+
+    metricas : str o list
+        Métrica o lista de métricas numéricas a comparar
+        (ej: sobrevivio_ml, edad, tarifa, familia).
+
+    Returns
+    -------
+    pandas.DataFrame
+
+    Para 2 grupos:
+        métrica | grupo_1 | grupo_2 | diferencia
+
+    La diferencia se calcula como:
+        grupo_2 - grupo_1
+
+    Para más de 2 grupos:
+        métrica | grupo_1 | grupo_2 | grupo_3 | ...
+
+    Examples
+    --------
+    exploracion_grupos(
+        titanic,
+        "sexo",
+        ["sobrevivio_ml", "edad", "tarifa", "familia"]
+    )
+
+    exploracion_grupos(
+        titanic,
+        "embarque",
+        "sobrevivio_ml"
+    )
+    """
+    if isinstance(metricas, str):
+        metricas = [metricas]
+
+    grupos = list(df[col_control].unique())
+
+    filas = []
+
+    for metrica in metricas:
+
+        fila = {"metrica": metrica}
+
+        for grupo in grupos:
+
+            valor = df.loc[
+                df[col_control] == grupo,
+                metrica
+            ].mean()
+
+            fila[grupo] = round(valor, 2)
+
+        if len(grupos) == 2:
+
+            fila["diferencia"] = round(
+                fila[grupos[1]] - fila[grupos[0]],
+                2
+            )
+
+        else:
+
+            valores = [fila[g] for g in grupos]
+
+            fila["rango"] = round(
+                max(valores) - min(valores),
+                2
+            )
+
+        filas.append(fila)
+
+    resultado = pd.DataFrame(filas)
+
+    if len(grupos) > 2:
+        resultado = resultado.sort_values(
+            "rango",
+            ascending=False
         )
-        display(df_filtrado.describe(include='str').T)
 
-        print(
-            f'Los principales estadísticos de las columnas '
-            f'numéricas para el grupo {categoria.upper()} son'
-        )
-        display(df_filtrado.describe(include='number').T)
+    display(resultado)
 
-        print('=' * 100)
+    return None
 
 
 # ============================================================================
@@ -167,33 +254,83 @@ def normalidad(df, lista_metricas, n_max=5000, random_state=42):
                 f'Para la columna {metrica.upper()} '
                 f'los datos NO siguen una distribución normal'
             )
+
+
+def homocedasticidad_resumen(df, col_control, metricas, alpha=0.05):
+    """
+    Evalúa la homocedasticidad mediante el test de Levene y muestra
+    únicamente las métricas que presentan varianzas homogéneas entre
+    los grupos definidos por la columna de control.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame a analizar.
+
+    col_control : str
+        Columna categórica que define los grupos.
+
+    metricas : str o list
+        Métrica o lista de métricas numéricas.
+
+    alpha : float, default=0.05
+        Nivel de significación.
+
+    Returns
+    -------
+    list
+        Lista de métricas que cumplen homocedasticidad.
+    """
+
+    if isinstance(metricas, str):
+        metricas = [metricas]
+
+    metricas_homocedasticas = []
+
+    for metrica in metricas:
+
+        muestras = [
+            grupo[metrica].dropna()
+            for _, grupo in df.groupby(col_control)
+        ]
+
+        try:
+
+            _, p_value = stats.levene(*muestras)
+
+            if p_value > alpha:
+                metricas_homocedasticas.append(metrica)
+
+        except Exception:
+            continue
+
+    if metricas_homocedasticas:
+
+        print(
+            f"Para la columna {col_control.upper()} las varianzas "
+            f"de las siguientes métricas SÍ son homogéneas. "
             
-def homocedasticidad(df, col_control, lista_metricas):
-    """Paso 2 del diagrama. Levene entre los grupos de col_control."""
+        )
+        print("SÍ hay HOMOCEDASTICIDAD\n")
+        print(metricas_homocedasticas)
+        print("\n")
+    else:
 
-    for metrica in lista_metricas:
-        df_grupos = []
-
-        for valor in df[col_control].unique():
-            df_grupos.append(df[df[col_control] == valor][metrica])
-
-        statistic, pvalue = stats.levene(*df_grupos)
-
-        if pvalue > 0.05:
-            print(
-                f'Para la columna {metrica.upper()} las varianzas SÍ son homgéneas entre grupos, SI hay HOMOCEDASTICIDAD'
-            )
-        else:
-            print(
-                f'Para la columna {metrica.upper()} las varianzas NO son homgéneas entre grupos, NO hay HOMOCEDASTICIDAD'
-            )
-
+        print(
+            f"Para la columna {col_control.upper()} NO se han "
+            f"encontrado métricas con HOMOCEDASTICIDAD."
+        )
+        print("\n")
+    return metricas_homocedasticas
 
 def ttest_dos_grupos(df, col_control, lista_metricas):
     """Rama: 2 grupos, normal, homocedástico.
     Sustituye a 'z-score' del diagrama — con datos de muestra (no con sigma
     poblacional conocida) el test correcto es t-test.
-    equal_var=False (Welch) por defecto: no exige varianzas exactamente iguales."""
+    equal_var=False (Welch) por defecto: no exige varianzas exactamente iguales.
+    p < 0.05  → hay evidencia de diferencias significativas
+    p ≥ 0.05  → no hay evidencia de diferencias significativas
+    """
 
     for metrica in lista_metricas:
 
@@ -213,7 +350,10 @@ def ttest_dos_grupos(df, col_control, lista_metricas):
 
 
 def mannwhitneyu(df, col_control, lista_metricas):
-    """Rama: 2 grupos, no normal y/o no homocedástico. Compara medianas."""
+    """Rama: 2 grupos, no normal y/o no homocedástico. Compara medianas.
+        p < 0.05  → hay evidencia de diferencias significativas
+        p ≥ 0.05  → no hay evidencia de diferencias significativas
+    """
 
     for metrica in lista_metricas:
 
@@ -234,7 +374,11 @@ def mannwhitneyu(df, col_control, lista_metricas):
 
 def anova_tukey(df, col_control, lista_metricas, alpha=0.05):
     """Rama: 3+ grupos, normal, homocedástico. ANOVA + post-hoc Tukey
-    si el ANOVA global sale significativo (dice qué pares difieren)."""
+    si el ANOVA global sale significativo (dice qué pares difieren).
+    
+    p < 0.05  → hay evidencia de diferencias significativas
+    p ≥ 0.05  → no hay evidencia de diferencias significativas
+    """
 
     for metrica in lista_metricas:
 
@@ -258,7 +402,10 @@ def kruskal(df, col_control, lista_metricas):
     Equivalente no paramétrico de ANOVA — cierra la 4ª rama del flujo,
     ya que mannwhitneyu() solo sirve para 2 grupos.
     Post-hoc equivalente a Tukey (si hace falta): test de Dunn,
-    disponible en la librería scikit-posthocs (no incluida aquí)."""
+    disponible en la librería scikit-posthocs (no incluida aquí).
+        p < 0.05  → hay evidencia de diferencias significativas
+        p ≥ 0.05  → no hay evidencia de diferencias significativas
+    """
 
     for metrica in lista_metricas:
 

@@ -21,9 +21,10 @@ sp_limpieza_trasfromacion.py, Fase 2). Solo carga, valida y explora.
 
   leer_csv()             -> lee un csv, avisa si el archivo no existe
   leer_excel()           -> lee una hoja de un excel, avisa si no existe
-  leer_otros_formatos()  -> lee parquet,json,pickle
   exploracion_inicial()  -> vista rápida: sample, info, nulos,
                              duplicados, distribución de categóricas
+  leer_otros_formatos()  -> lee html,parquet,json,pickle
+
 """
 
 import pandas as pd
@@ -32,7 +33,8 @@ from IPython.display import display
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 2000)
 pd.set_option('display.expand_frame_repr', False)
-
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
 
 # ============================================================================
 # 0. LECTURA DE ARCHIVOS

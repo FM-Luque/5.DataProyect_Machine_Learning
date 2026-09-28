@@ -44,11 +44,8 @@ from sklearn.metrics import (
 
 from sklearn.decomposition import PCA
 
-# Para que se muestren todas las columnas al inspeccionar los DataFrames
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 2000)
-pd.set_option('display.expand_frame_repr', False)
-pd.set_option('display.max_colwidth', None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", 2000)
 
 
 # ==========================================================================

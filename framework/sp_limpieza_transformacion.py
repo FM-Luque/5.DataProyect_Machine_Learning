@@ -1,60 +1,96 @@
 """
-sp_limpieza_trasfromacion.py
-================
+sp_limpieza_transformacion.py
+============================
+
 Caja de herramientas de Fase 2 — Limpieza y Transformación.
 
-Sigue el flujo de 10 pasos:
+Sigue el flujo recomendado:
 
-  0. Exploración inicial      -> reporte_calidad()
+0. Exploración inicial
+   -> reporte_calidad()
 
-  1. Normalizar columnas      -> eliminar_columnas() / limpiar_columnas() /
-                                  renombrar_columnas()
+1. Normalizar columnas
+   -> eliminar_columnas()
+   -> limpiar_columnas()
+   -> renombrar_columnas()
 
-  2. Corregir tipos de datos  -> reemplazar_caracter() / convertir_fecha() /
-                                  convertir_int() / convertir_float() /
-                                  convertir_datetime() / convertir_category() /
-                                  convertir_bool()
+2. Corregir tipos de datos
+   -> reemplazar_caracter()
+   -> convertir_fecha()
+   -> convertir_int()
+   -> convertir_float()
+   -> convertir_datetime()
+   -> convertir_category()
+   -> convertir_bool()
 
-  3. Tratar valores nulos     -> buscar_nulos() / columnas_con_nulos() /
-                                  estadisticas_nulos() / imputar_media() /
-                                  imputar_mediana() / imputar_moda() /
-                                  imputar_constante() / eliminar_filas_nulas() /
-                                  eliminar_columnas_nulas()
+3. Tratar valores nulos
+   -> buscar_nulos()
+   -> columnas_con_nulos()
+   -> estadisticas_nulos()
+   -> analizar_nulos_numericas()
+   -> analizar_nulos_categoricas()
+   -> analizar_nulos_datetime()
+   -> imputar_media()
+   -> imputar_mediana()
+   -> imputar_moda()
+   -> imputar_constante()
+   -> eliminar_filas_nulas()
+   -> eliminar_columnas_nulas()
 
-  3.5 Tratar columnas binarias -> preparar_binaria_ml() / crear_binaria_ml()
+4. Eliminar duplicados
+   -> buscar_duplicados()
+   -> eliminar_duplicados()
 
-  4. Eliminar duplicados      -> buscar_duplicados() / eliminar_duplicados()
+5. Limpiar texto inconsistente
+   -> ver_valores_string()
+   -> limpiar_texto()
+   -> reemplazar_texto()
+   -> reemplazar_texto_dic()
+   -> eliminar_acentos()
+   -> insertar_columna_dic()
 
-  5. Limpiar texto inconsistente -> ver_valores_string() / limpiar_texto() /
-                                  reemplazar_texto() / reemplazar_texto_dic() /
-                                  eliminar_acentos()
+6. Revisión de variables
+   -> buscar_constantes()
+   -> buscar_columnas_vacias()
+   -> buscar_ids()
+   -> buscar_alta_cardinalidad()
+   -> eliminar_filas()
 
-  6. Eliminar variables irrelevantes -> buscar_constantes() /
-                                  buscar_columnas_vacias() / buscar_ids() /
-                                  buscar_alta_cardinalidad()
+Reglas de negocio
+   -> Validaciones específicas de cada dataset
+   -> Consultar plantilla en 23. sp_utils.py 
 
-  6.5 Validar coherencia entre columnas (reglas de negocio)
-        -> NO tiene función propia en este módulo: las reglas dependen
-        de cada dataset (ej. "si contacto_previo='no_contactado',
-        dias_contacto debe ser 999"; "fecha_alta no puede ser posterior
-        a fecha"). Ver la plantilla general (comprobaciones vectorizadas
-        + value_counts() por regla) en sp_utils.py paso 19, sección "Reglas de
-        negocio / coherencia entre columnas".
+7. Detectar y tratar outliers
+   -> detectar_outliers_todas()
+   -> detectar_outliers_iqr()
+   -> eliminar_outliers_iqr()
+   -> winsorizar_columnas()
 
-  7. Detectar y tratar outliers -> detectar_outliers_todas() /
-                                  detectar_outliers_iqr() /
-                                  eliminar_outliers_iqr() /
-                                  winsorizar_columnas()
+8. Preparación para ML (opcional)
+   -> crear_binaria_sn()
+   -> preparar_binaria_ml()
+   -> crear_binaria_ml()
 
-  8. Validación final y guardado -> reporte_calidad() (de nuevo, para comparar
-                                  antes/después) / guardar_csv()
+9. Validación final
+   -> validacion_final()
 
-Este módulo NO hace feature engineering avanzado (escalado, encoding,
-variables polinómicas...) — eso vive en el soporte de Modelado, que se
-usa más adelante, cuando el dataset ya está limpio.
+10. Guardado
+    -> guardar_csv()
 
-Extra (no numerado, utilidad puntual): extraer_fecha() para descomponer
+----------------------------------------------------------------
+
+Este módulo NO realiza:
+- Encoding
+- Escalado
+- Selección de variables
+- Feature engineering avanzado
+
+Estas tareas pertenecen a la fase de Modelado.
+
+Extra:
+-> extraer_fecha() (no numerado, utilidad puntual): extraer_fecha() para descomponer
 una columna datetime en año/mes/día/trimestre/día de la semana.
+
 """
 
 import re
@@ -62,18 +98,20 @@ import unicodedata
 
 import numpy as np
 import pandas as pd
+from IPython.display import display
+
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 2000)
 pd.set_option('display.expand_frame_repr', False)
 pd.set_option('display.max_colwidth', None)
-
+pd.set_option('display.max_rows', None)
 
 # ============================================================================
-# 0. CALIDAD DEL DATASET
-# ============================================================================
-
-
+# 2. Reporte de calidad de Datos 
+# ===========================================================================
 
 def reporte_calidad(df, n_ejemplos=3):
     """
@@ -114,7 +152,7 @@ def reporte_calidad(df, n_ejemplos=3):
     return reporte
 
 # ============================================================================
-# 1. NORMALIZAR COLUMNAS
+# 3. Normalizar Columnas
 # ============================================================================
 
 def eliminar_columnas(df, columnas):
@@ -141,10 +179,11 @@ def renombrar_columnas(df, diccionario):
     nuevo = df.rename(columns=diccionario)
     return nuevo
 
-    # imputar --> df_l.columns.tolist() para ver los cambios
+    # imputar --> df.columns.tolist() para ver los cambios
+
 
 # ============================================================================
-# 2. CORREGIR TIPOS DE DATOS
+## 4. Corregir tipos de Datos
 # ============================================================================
 
 def reemplazar_caracter(df, columnas, buscar, reemplazo):
@@ -254,7 +293,7 @@ def convertir_bool(df, col_bool, mapeo=None):
 
 
 # ============================================================================
-# 3. TRATAR VALORES NULOS
+## 5. Tratar valores nulos
 # ============================================================================
 
 def buscar_nulos(df):
@@ -268,9 +307,23 @@ def buscar_nulos(df):
         )
 
 def columnas_con_nulos(df):
-    """Lista de nombres de columnas que tienen al menos un nulo."""
-    nulos = df.isna().sum()
-    return list(nulos[nulos > 0].index)
+    """
+    Devuelve las columnas con nulos agrupadas por tipo.
+    """
+
+    columnas = df.columns[df.isna().any()]
+
+    numericas = (df[columnas].select_dtypes(include='number').columns.tolist())
+
+    categoricas = (df[columnas].select_dtypes(include=['object', 'string', 'category']).columns.tolist())
+
+    datetime = (df[columnas].select_dtypes(include='datetime').columns.tolist())
+
+    return {
+        'numericas': f"cols_numericas = {numericas}",
+        'categoricas': f"cols_categoricas = {categoricas}",
+        'datetime': f"cols_datetime = {datetime}",
+    }
 
 
 def estadisticas_nulos(df, columnas):
@@ -283,7 +336,257 @@ def estadisticas_nulos(df, columnas):
     print('• Std muy alta: posible presencia de outliers.')
     print('• Variables categóricas: usar la moda.')
     print('=' * 70)
-    return df[columnas].describe(include="all").T
+    return df[columnas].describe(include='all').T
+
+
+def analizar_nulos_numericas(df, columnas):
+    
+    for col in columnas:
+
+        print('\n' + '=' * 60)
+        print(f'VARIABLE: {col}')
+        print('=' * 60)
+
+        # -------------------------
+        # NULOS
+        # -------------------------
+
+        nulos = df[col].isna().sum()
+        porcentaje_nulos = nulos / len(df) * 100
+
+        print(f'Nulos: {nulos} ({porcentaje_nulos:.2f}%)')
+
+        # -------------------------
+        # HISTOGRAMA Y BOXPLOT
+        # -------------------------
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+        sns.histplot(df[col], bins=20, ax=axes[0])
+        axes[0].set_title(f'Histograma - {col}')
+
+        sns.boxplot(x=df[col], ax=axes[1])
+        axes[1].set_title(f'Boxplot - {col}')
+
+        plt.tight_layout()
+        plt.show()
+
+        # -------------------------
+        # OUTLIERS
+        # -------------------------
+
+        valores = df[col].dropna()
+
+        q1 = valores.quantile(0.25)
+        q3 = valores.quantile(0.75)
+
+        iqr = q3 - q1
+
+        inferior = q1 - 1.5 * iqr
+        superior = q3 + 1.5 * iqr
+
+        outliers = (
+            (valores < inferior) |
+            (valores > superior)
+        ).sum()
+
+        porcentaje_outliers = outliers / len(valores) * 100
+
+        print(
+            f'Outliers: {outliers} '
+            f'({porcentaje_outliers:.2f}%)'
+        )
+
+        # -------------------------
+        # SKEWNESS
+        # -------------------------
+
+        skew = valores.skew()
+
+        print(f'Skewness: {skew:.2f}')
+
+        # -------------------------
+        # RECOMENDACIÓN
+        # -------------------------
+
+        if porcentaje_nulos > 25:
+
+            print(
+                'Alto porcentaje de nulos → '
+                'valorar imputación avanzada o análisis específico.'
+                ' *Antes de tomar decisión revisar estadísticas'
+            )
+
+        elif abs(skew) <= 0.5 and porcentaje_outliers < 5:
+
+            print(
+                'Distribución simétrica + pocos outliers '
+                '→ MEDIA como candidata.'
+                ' *Antes de tomar decisión revisar estadísticas'
+            )
+
+        else:
+
+            print(
+                'Asimetría o presencia de outliers '
+                '→ MEDIANA como candidata.'
+                ' *Antes de tomar decisión revisar estadísticas'
+            )
+
+
+def analizar_nulos_categoricas(df, columnas):
+
+    for col in columnas:
+
+        print('\n' + '=' * 60)
+        print(f'VARIABLE: {col}')
+        print('=' * 60)
+
+        # NULOS
+        nulos = df[col].isna().sum()
+        porcentaje_nulos = nulos / len(df) * 100
+
+        print(f'Nulos: {nulos} ({porcentaje_nulos:.2f}%)')
+
+        # FRECUENCIAS
+        print('\nFrecuencias:')
+        display(df[col].value_counts(dropna=False))
+
+        # MODA
+        valores = df[col].dropna()
+
+        if len(valores) == 0:
+            print('⚠ Todos los valores son nulos.')
+            continue
+
+        moda = valores.mode()[0]
+
+        moda_pct = (
+            valores.value_counts(normalize=True).iloc[0] * 100
+        )
+
+        print(f'\nModa: {moda}')
+        print(f'% de la moda: {moda_pct:.2f}%')
+
+        # GRÁFICO
+        datos = df[col].fillna('NULO')
+
+        sns.countplot(
+            x=datos,
+            order=datos.value_counts().index
+        )
+
+        plt.title(f'Distribución de {col}')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.show()
+
+        # RECOMENDACIÓN
+        print('\nRECOMENDACIÓN:')
+
+        if porcentaje_nulos > 10:
+
+            print(
+                "Muchos nulos → investigar el patrón "
+                "y valorar 'DESCONOCIDO'."
+            )
+
+        elif porcentaje_nulos <= 5 and moda_pct >= 80:
+
+            print(
+                'Pocos nulos + moda dominante '
+                '→ IMPUTAR POR MODA.'
+            )
+
+        else:
+
+            print(
+                "Distribución repartida o nulos moderados "
+                "→ valorar 'DESCONOCIDO'."
+            )
+
+
+def analizar_nulos_datetime(df, columnas):
+
+    for col in columnas:
+
+        print('\n' + '=' * 60)
+        print(f'VARIABLE: {col}')
+        print('=' * 60)
+
+        # NULOS
+        nulos = df[col].isna().sum()
+        porcentaje_nulos = nulos / len(df) * 100
+
+        print(
+            f'Nulos: {nulos} '
+            f'({porcentaje_nulos:.2f}%)'
+        )
+
+        # RANGO DE FECHAS
+        print(f'\nFecha mínima: {df[col].min()}')
+        print(f'Fecha máxima: {df[col].max()}')
+
+        # EVOLUCIÓN TEMPORAL
+        fechas = (
+            df[col]
+            .dropna()
+            .dt.to_period('M')
+            .value_counts()
+            .sort_index()
+        )
+
+        fechas.index = fechas.index.to_timestamp()
+
+        plt.figure(figsize=(10, 4))
+
+        sns.lineplot(
+            x=fechas.index,
+            y=fechas.values,
+            marker='o'
+        )
+
+        plt.title(f'Evolución temporal de {col}')
+        plt.ylabel('Nº registros')
+        plt.xticks(rotation=45)
+
+        plt.tight_layout()
+        plt.show()
+
+        # RECOMENDACIÓN
+        print('\nRECOMENDACIÓN:')
+
+        if porcentaje_nulos <= 5:
+
+            print(
+                'Pocos nulos → '
+                'revisar si se pueden eliminar las filas.'
+            )
+
+        elif porcentaje_nulos <= 10:
+
+            print(
+                'Nulos moderados → '
+                'revisar la secuencia temporal.'
+            )
+
+            print(
+                '→ Si existe una secuencia coherente, '
+                'valorar interpolación.'
+            )
+
+        else:
+
+            print(
+                'Muchos nulos → '
+                'investigar el patrón de ausencia.'
+            )
+
+            print(
+                '→ Valorar interpolación u otra '
+                'imputación avanzada.'
+            )
+
 
 
 def imputar_media(df, col_media):
@@ -315,6 +618,7 @@ def imputar_mediana(df, col_mediana):
         nuevo[col] = nuevo[col].fillna(valor)
     return nuevo
 
+# Ver valor mode con df[''].mode()
 
 def imputar_moda(df, col_moda):
     """Rellena los nulos con la moda (valor más frecuente). Es la
@@ -357,9 +661,459 @@ def eliminar_columnas_nulas(df, umbral=1.0):
     columnas = porcentaje[porcentaje >= umbral].index
     return df.drop(columns=columnas)
 
+
+
 # ============================================================================
-# 3.5. TRATAR COLUMNAS BINARIAS 
+# 4. ELIMINAR DUPLICADOS
 # ============================================================================
+
+def buscar_duplicados(df):
+    """Devuelve cuántas filas están duplicadas por completo."""
+    return int(df.duplicated().sum())
+
+
+def eliminar_duplicados(df, keep='first'):
+    """
+    Elimina filas duplicadas.
+
+    keep='first' -> conserva la primera aparición (por defecto).
+    keep='last'  -> conserva la última aparición.
+    keep=False   -> elimina TODAS las filas que tengan algún duplicado.
+    """
+    return df.drop_duplicates(keep=keep)
+
+
+# ============================================================================
+# 5. LIMPIAR TEXTO INCONSISTENTE
+# ============================================================================
+
+def ver_valores_string(df, excluir=None):
+    """Muestra los valores únicos de las columnas de tipo texto."""
+    if excluir is None:
+        excluir = []
+    elif isinstance(excluir, str):
+        excluir = [excluir]
+
+    columnas = df.select_dtypes(include='str').columns
+    columnas = [col for col in columnas if col not in excluir]
+
+    for col in columnas:
+        print(f'\n--- {col} ---')
+        print(df[col].unique())
+
+
+def limpiar_texto(df, columnas):
+    """Normaliza texto: quita espacios sobrantes, pasa a minúsculas
+    y colapsa espacios múltiples en uno solo."""
+    nuevo = df.copy()
+
+    if isinstance(columnas, str):
+        columnas = [columnas]
+
+    for col in columnas:
+        nuevo[col] = (
+            nuevo[col]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .str.replace(r'\s+', ' ', regex=True)
+            .str.replace(' ', '_', regex=False)
+        )
+    return nuevo
+
+
+
+def reemplazar_texto(df, columna, buscar, reemplazo):
+    """
+    Reemplaza valores concretos dentro de una columna.
+
+    Ejemplo
+    -------
+    reemplazar_texto(df, 'ciudad', ['Sevilla ', ' sevilla'], 'sevilla')
+    """
+    nuevo = df.copy()
+    nuevo[columna] = nuevo[columna].replace(buscar, reemplazo)
+    return nuevo
+
+def reemplazar_texto_dic(df, columna, reemplazos):
+    """
+    Reemplaza valores concretos dentro de una columna usando un diccionario.
+
+    Ejemplo
+    -------
+    reemplazar_texto(
+        df,
+        'ciudad',
+        {
+            'Sevilla ': 'sevilla',
+            ' sevilla': 'sevilla',
+            'MADRID': 'madrid'
+        }
+    )
+
+    Uso opcional crear columna nueva
+    -------------------------------
+    df["col_nueva"] = df["col_origen"]
+
+    df = sl.reemplazar_texto_dic(
+        df,"col_nueva",
+        {0: "No", 1: "Sí"} )
+    """
+    nuevo = df.copy()
+    nuevo[columna] = nuevo[columna].replace(reemplazos)
+    return nuevo
+
+
+def eliminar_acentos(df, columnas):
+    """Elimina tildes/acentos de las columnas de texto indicadas."""
+    nuevo = df.copy()
+
+    if isinstance(columnas, str):
+        columnas = [columnas]
+
+    for col in columnas:
+        nuevo[col] = nuevo[col].apply(
+            lambda x: unicodedata.normalize('NFKD', str(x)).encode('ascii', 'ignore').decode()
+            if pd.notna(x) else x
+        )
+    return nuevo
+
+def insertar_columna_dic(df, columna_origen, columna_nueva, diccionario):
+    """
+    Crea una nueva columna a partir de otra existente utilizando
+    un diccionario de reemplazo.
+
+    La columna original se conserva.
+
+    Parameters
+    ----------
+    df : DataFrame
+
+    columna_origen : str
+        Columna de partida.
+
+    columna_nueva : str
+        Nombre de la nueva columna.
+
+    diccionario : dict
+        Diccionario de transformación.
+
+    Returns
+    -------
+    DataFrame
+
+    Ejemplo
+    -------
+    df = insertar_columna_dic(
+        df,
+        "sobrevivio_ml",
+        "sobrevivio_sn",
+        {
+            0: "No",
+            1: "Sí"
+        }
+    )
+    """
+
+    nuevo = df.copy()
+
+    nuevo[columna_nueva] = (
+        nuevo[columna_origen]
+        .replace(diccionario).astype('str')
+    )
+
+    return nuevo
+
+
+# ============================================================================
+# EXTRA — FECHAS (utilidad puntual, no ligada a un paso numerado)
+# ============================================================================
+
+def extraer_fecha(df, columna):
+    """
+    Descompone una columna datetime en año, mes, día, día de la
+    semana y trimestre, como columnas nuevas.
+
+    Requiere que la columna ya esté convertida a datetime
+    (ver convertir_datetime()).
+    """
+    nuevo = df.copy()
+    nuevo[f'{columna}_anio'] = nuevo[columna].dt.year
+    nuevo[f'{columna}_mes'] = nuevo[columna].dt.month
+    nuevo[f'{columna}_dia'] = nuevo[columna].dt.day
+    nuevo[f'{columna}_dia_semana'] = nuevo[columna].dt.day_name()
+    nuevo[f'{columna}_trimestre'] = nuevo[columna].dt.quarter
+    return nuevo
+
+# ============================================================================
+# 8. REVISION DE VARIABLES
+# ============================================================================
+
+def buscar_constantes(df):
+    """Devuelve las columnas que tienen un único valor (no aportan
+    información, se pueden eliminar)."""
+    return [c for c in df.columns if df[c].nunique(dropna=False) == 1]
+
+
+def buscar_columnas_vacias(df):
+    """Devuelve las columnas que están 100% vacías (todo nulos)."""
+    return df.columns[df.isna().all()].tolist()
+
+
+def buscar_ids(df):
+    """
+    Devuelve columnas donde cada fila tiene un valor distinto
+    (posibles identificadores: order_id, id_cliente...). Útiles
+    para relacionar tablas, pero normalmente no sirven como métrica
+    ni como variable de agrupación.
+    """
+    return [c for c in df.columns if df[c].nunique() == len(df)]
+
+
+def buscar_alta_cardinalidad(df, umbral=0.90):
+    """
+    Devuelve columnas donde el % de valores únicos supera el umbral
+    (por defecto 90%) sin llegar a ser un ID puro. Candidatas a
+    revisar antes de usarlas como variable categórica.
+    """
+    columnas = []
+    for c in df.columns:
+        if (df[c].nunique() / len(df)) >= umbral:
+            columnas.append(c)
+    return columnas
+
+
+def eliminar_filas(df, filas):
+    """
+    Elimina una o varias filas de un DataFrame usando su posición.
+    No por su indice. 
+    """
+    if isinstance(filas, int):
+        filas = [filas]
+
+    indices = df.iloc[filas].index
+    return df.drop(indices)
+
+# ============================================================================
+# 6.5.REGLAS DE NEGOCIO
+# ============================================================================
+
+""" 
+NO tiene función propia en este módulo: las reglas dependen de cada dataset, 
+consultar en sp_utils.py paso 23, sección "Reglas de negocio / coherencia entre columnas".    
+"""
+
+# ============================================================================
+# 7. DETECTAR Y TRATAR OUTLIERS
+# ============================================================================
+
+def detectar_outliers_todas(df):
+    """
+    Recorre TODAS las columnas numéricas y devuelve un resumen (una
+    fila por columna) de las que tienen outliers según el criterio IQR.
+
+    Es la vista rápida de Fase 2: úsala para decidir qué columnas
+    merece la pena mirar de cerca, y luego usa detectar_outliers_iqr()
+    sobre esa columna en concreto si necesitas el detalle completo
+    (Q1, Q3, describe de los outliers...).
+
+    Returns
+    -------
+    DataFrame con columnas: columna, outliers, %_outliers,
+    limite_inferior, limite_superior. Ordenado de más a menos outliers.
+    """
+    filas = []
+    for columna in df.select_dtypes(include='number').columns:
+        q1 = df[columna].quantile(0.25)
+        q3 = df[columna].quantile(0.75)
+        iqr = q3 - q1
+        inferior = q1 - 1.5 * iqr
+        superior = q3 + 1.5 * iqr
+
+        n_outliers = ((df[columna] < inferior) | (df[columna] > superior)).sum()
+
+        if n_outliers > 0:
+            filas.append({
+                'columna': columna,
+                'outliers': n_outliers,
+                '%_outliers': round(n_outliers / len(df) * 100, 2),
+                'limite_inferior': round(inferior, 3),
+                'limite_superior': round(superior, 3),
+            })
+
+    resumen = pd.DataFrame(filas).sort_values('outliers', ascending=False).reset_index(drop=True)
+    return resumen
+
+
+def detectar_outliers_iqr(df, columna):
+    """
+    Devuelve las filas consideradas outlier en una columna, usando
+    el criterio del rango intercuartílico (IQR): fuera de
+    [Q1 - 1.5*IQR, Q3 + 1.5*IQR].
+
+    Parameters
+    ----------
+    df : DataFrame
+    columna : str
+
+    Returns
+    -------
+    DataFrame con solo las filas outlier de esa columna.
+    """
+    q1 = df[columna].quantile(0.25)
+    q3 = df[columna].quantile(0.75)
+    iqr = q3 - q1
+    inferior = q1 - 1.5 * iqr
+    superior = q3 + 1.5 * iqr
+
+    outliers = df[(df[columna] < inferior) | (df[columna] > superior)]
+
+    print(f'Columna: {columna}')
+    print(f'Límite inferior: {inferior:.3f}  |  Límite superior: {superior:.3f}')
+    print(f'Outliers encontrados: {len(outliers)} ({len(outliers) / len(df) * 100:.2f}%)')
+
+    return outliers
+
+# cols_outliers = []
+# for col in cols_outliers:
+    # print("="*50)
+    # sl.detectar_outliers_iqr(df_l,col)
+    # print(".."*50)
+    # print(df_l[col].describe().T)
+    # print(".."*50)
+    # print(df_l[col].sort_values(ascending=False).head(5))
+
+# outliers_campana.to_csv('revisar_campana.csv')  # exportar para revisión manual
+
+
+
+def eliminar_outliers_iqr(df, columna, umbral_aviso=10.0):
+    """
+    Elimina del DataFrame las filas consideradas outlier en una
+    columna (criterio IQR). A diferencia de capar_outliers_iqr(),
+    que solo recorta el valor, esta función BORRA la fila completa
+    — es una decisión más agresiva, ya que se pierde esa información.
+
+    Avisa si el % de outliers detectado supera umbral_aviso, porque
+    un porcentaje muy alto suele indicar que NO son errores de
+    captura, sino valores extremos reales (la variable tiene una
+    distribución con cola larga) — en ese caso, suele ser mejor usar
+    capar_outliers_iqr() en vez de eliminar filas.
+
+    Parameters
+    ----------
+    df : DataFrame
+    columna : str
+    umbral_aviso : float
+        % de outliers a partir del cual se muestra el aviso
+        (por defecto 10.0).
+
+    Returns
+    -------
+    DataFrame sin las filas outlier de esa columna.
+    """
+    q1 = df[columna].quantile(0.25)
+    q3 = df[columna].quantile(0.75)
+    iqr = q3 - q1
+    inferior = q1 - 1.5 * iqr
+    superior = q3 + 1.5 * iqr
+
+    es_outlier = (df[columna] < inferior) | (df[columna] > superior)
+    n_outliers = int(es_outlier.sum())
+    porcentaje = n_outliers / len(df) * 100
+
+    print(f'Columna: {columna}')
+    print(f'Límite inferior: {inferior:.3f}  |  Límite superior: {superior:.3f}')
+    print(f'Filas a eliminar: {n_outliers} ({porcentaje:.2f}%)')
+
+    if porcentaje > umbral_aviso:
+        print('-' * 70)
+        print(f'⚠ AVISO: el porcentaje de outliers supera el {umbral_aviso}%.')
+        print('  Esto suele indicar que NO son errores de captura, sino valores')
+        print('  extremos reales (distribución con cola larga). Antes de eliminar,')
+        print('  valora usar capar_outliers_iqr() para no perder tanta información.')
+        print('-' * 70)
+
+    return df[~es_outlier]
+
+def winsorizar_columnas(df, columnas, sufijo='_wz'):
+    """
+    'Winsoriza' una o varias columnas: en vez de eliminar los outliers,
+    los recorta (clip) a los límites del IQR. Crea una columna nueva
+    con el sufijo indicado (por defecto '_wz'), conservando la
+    original intacta para reportar cifras reales de negocio.
+
+    Ejemplo
+    -------
+    capar_outliers_iqr(df, ['campana', 'duracion'])
+    # crea 'campana_wz' y 'duracion_wz'
+    """
+    nuevo = df.copy()
+
+    if isinstance(columnas, str):
+        columnas = [columnas]
+
+    for col in columnas:
+        q1 = nuevo[col].quantile(0.25)
+        q3 = nuevo[col].quantile(0.75)
+        iqr = q3 - q1
+        inferior = q1 - 1.5 * iqr
+        superior = q3 + 1.5 * iqr
+
+        nuevo[f'{col}{sufijo}'] = nuevo[col].clip(inferior, superior)
+
+    return nuevo
+
+# ============================================================================
+# 8. TRATAR COLUMNAS BINARIAS ML
+# ============================================================================
+def crear_binaria_sn(df, columna):
+    """
+    Crea una versión categórica (_sn) de una variable binaria 0/1.
+
+    Pensada principalmente para variables objetivo utilizadas
+    posteriormente en EDA, tablas cruzadas, visualizaciones
+    y reporting.
+
+    Conversión estándar:
+        0 -> "No"
+        1 -> "Sí"
+
+    La columna original se conserva.
+
+    Parameters
+    ----------
+    df : DataFrame
+
+    columna : str
+        Nombre de la columna binaria.
+
+    Returns
+    -------
+    DataFrame
+        DataFrame con una nueva columna "{columna}_sn".
+
+    Ejemplo
+    --------
+    crear_binaria_sn(df, "sobrevivio_ml")
+
+    sobrevirio_ml    sobrevivio_sn
+    1                Sí
+    0                No
+    """
+    
+    nuevo = df.copy()
+
+    nuevo[f"{columna[:-3]}_sn"] = (
+        nuevo[columna]
+        .replace({
+            0: "No",
+            1: "Sí"
+        })
+    ).astype('str')
+
+    return nuevo
+
 
 def preparar_binaria_ml(df, columna, valor_imputacion=None):
     """
@@ -508,333 +1262,45 @@ def crear_binaria_ml(df, columna, mapeo):
 
     return nuevo
 
-
-
 # ============================================================================
-# 4. ELIMINAR DUPLICADOS
+# 9. VALIDACION FINAL 
 # ============================================================================
 
-def buscar_duplicados(df):
-    """Devuelve cuántas filas están duplicadas por completo."""
-    return int(df.duplicated().sum())
+def validacion_final(df):
 
-
-def eliminar_duplicados(df, keep='first'):
-    """
-    Elimina filas duplicadas.
-
-    keep='first' -> conserva la primera aparición (por defecto).
-    keep='last'  -> conserva la última aparición.
-    keep=False   -> elimina TODAS las filas que tengan algún duplicado.
-    """
-    return df.drop_duplicates(keep=keep)
-
-
-# ============================================================================
-# 5. LIMPIAR TEXTO INCONSISTENTE
-# ============================================================================
-
-def ver_valores_string(df, excluir=None):
-    """Muestra los valores únicos de las columnas de tipo texto."""
-    if excluir is None:
-        excluir = []
-    elif isinstance(excluir, str):
-        excluir = [excluir]
-
-    columnas = df.select_dtypes(include='str').columns
-    columnas = [col for col in columnas if col not in excluir]
-
-    for col in columnas:
-        print(f'\n--- {col} ---')
-        print(df[col].unique())
-
-
-def limpiar_texto(df, columnas):
-    """Normaliza texto: quita espacios sobrantes, pasa a minúsculas
-    y colapsa espacios múltiples en uno solo."""
-    nuevo = df.copy()
-
-    if isinstance(columnas, str):
-        columnas = [columnas]
-
-    for col in columnas:
-        nuevo[col] = (
-            nuevo[col]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-            .str.replace(r'\s+', ' ', regex=True)
-            .str.replace(' ', '_', regex=False)
-        )
-    return nuevo
-
-
-
-def reemplazar_texto(df, columna, buscar, reemplazo):
-    """
-    Reemplaza valores concretos dentro de una columna.
-
-    Ejemplo
-    -------
-    reemplazar_texto(df, 'ciudad', ['Sevilla ', ' sevilla'], 'sevilla')
-    """
-    nuevo = df.copy()
-    nuevo[columna] = nuevo[columna].replace(buscar, reemplazo)
-    return nuevo
-
-def reemplazar_texto_dic(df, columna, reemplazos):
-    """
-    Reemplaza valores concretos dentro de una columna usando un diccionario.
-
-    Ejemplo
-    -------
-    reemplazar_texto(
-        df,
-        'ciudad',
-        {
-            'Sevilla ': 'sevilla',
-            ' sevilla': 'sevilla',
-            'MADRID': 'madrid'
-        }
-    )
-    """
-    nuevo = df.copy()
-    nuevo[columna] = nuevo[columna].replace(reemplazos)
-    return nuevo
-
-
-def eliminar_acentos(df, columnas):
-    """Elimina tildes/acentos de las columnas de texto indicadas."""
-    nuevo = df.copy()
-
-    if isinstance(columnas, str):
-        columnas = [columnas]
-
-    for col in columnas:
-        nuevo[col] = nuevo[col].apply(
-            lambda x: unicodedata.normalize('NFKD', str(x)).encode('ascii', 'ignore').decode()
-            if pd.notna(x) else x
-        )
-    return nuevo
-
+    print("=" * 70)
+    print("VALIDACIÓN FINAL DATASET")
+    print("=" * 70)
+    print("DIMENSIONES")
+    print(df.shape)
+    print("-" * 70)
+    print("INFORMACION")
+    df.info()
+    print("-" * 70)
+    print("DUPLICADOS")
+    print(buscar_duplicados(df))
+    print("-" * 70)
+    print("NULOS")
+    display(buscar_nulos(df))
+    print("-" * 70)
+    print("COLUMNAS CONSTANTES")
+    print(buscar_constantes(df))
+    print("-" * 70)
+    print("COLUMNAS VACÍAS")
+    print(buscar_columnas_vacias(df))
+    print("-" * 70)
+    print("IDS")
+    print(buscar_ids(df))
+    print("-" * 70)
+    print("ALTA CARDINALIDAD")
+    print(buscar_alta_cardinalidad(df))
+    print("-" * 70)
+    print("OUTLIERS")
+    display(detectar_outliers_todas(df))
+    print("=" * 70)
 
 # ============================================================================
-# EXTRA — FECHAS (utilidad puntual, no ligada a un paso numerado)
-# ============================================================================
-
-def extraer_fecha(df, columna):
-    """
-    Descompone una columna datetime en año, mes, día, día de la
-    semana y trimestre, como columnas nuevas.
-
-    Requiere que la columna ya esté convertida a datetime
-    (ver convertir_datetime()).
-    """
-    nuevo = df.copy()
-    nuevo[f'{columna}_anio'] = nuevo[columna].dt.year
-    nuevo[f'{columna}_mes'] = nuevo[columna].dt.month
-    nuevo[f'{columna}_dia'] = nuevo[columna].dt.day
-    nuevo[f'{columna}_dia_semana'] = nuevo[columna].dt.day_name()
-    nuevo[f'{columna}_trimestre'] = nuevo[columna].dt.quarter
-    return nuevo
-
-# ============================================================================
-# 6. ELIMINAR VARIABLES IRRELEVANTES
-# ============================================================================
-
-def buscar_constantes(df):
-    """Devuelve las columnas que tienen un único valor (no aportan
-    información, se pueden eliminar)."""
-    return [c for c in df.columns if df[c].nunique(dropna=False) == 1]
-
-
-def buscar_columnas_vacias(df):
-    """Devuelve las columnas que están 100% vacías (todo nulos)."""
-    return df.columns[df.isna().all()].tolist()
-
-
-def buscar_ids(df):
-    """
-    Devuelve columnas donde cada fila tiene un valor distinto
-    (posibles identificadores: order_id, id_cliente...). Útiles
-    para relacionar tablas, pero normalmente no sirven como métrica
-    ni como variable de agrupación.
-    """
-    return [c for c in df.columns if df[c].nunique() == len(df)]
-
-
-def buscar_alta_cardinalidad(df, umbral=0.90):
-    """
-    Devuelve columnas donde el % de valores únicos supera el umbral
-    (por defecto 90%) sin llegar a ser un ID puro. Candidatas a
-    revisar antes de usarlas como variable categórica.
-    """
-    columnas = []
-    for c in df.columns:
-        if (df[c].nunique() / len(df)) >= umbral:
-            columnas.append(c)
-    return columnas
-
-
-
-# ============================================================================
-# 7. DETECTAR Y TRATAR OUTLIERS
-# ============================================================================
-
-def detectar_outliers_todas(df):
-    """
-    Recorre TODAS las columnas numéricas y devuelve un resumen (una
-    fila por columna) de las que tienen outliers según el criterio IQR.
-
-    Es la vista rápida de Fase 2: úsala para decidir qué columnas
-    merece la pena mirar de cerca, y luego usa detectar_outliers_iqr()
-    sobre esa columna en concreto si necesitas el detalle completo
-    (Q1, Q3, describe de los outliers...).
-
-    Returns
-    -------
-    DataFrame con columnas: columna, outliers, %_outliers,
-    limite_inferior, limite_superior. Ordenado de más a menos outliers.
-    """
-    filas = []
-    for columna in df.select_dtypes(include='number').columns:
-        q1 = df[columna].quantile(0.25)
-        q3 = df[columna].quantile(0.75)
-        iqr = q3 - q1
-        inferior = q1 - 1.5 * iqr
-        superior = q3 + 1.5 * iqr
-
-        n_outliers = ((df[columna] < inferior) | (df[columna] > superior)).sum()
-
-        if n_outliers > 0:
-            filas.append({
-                'columna': columna,
-                'outliers': n_outliers,
-                '%_outliers': round(n_outliers / len(df) * 100, 2),
-                'limite_inferior': round(inferior, 3),
-                'limite_superior': round(superior, 3),
-            })
-
-    resumen = pd.DataFrame(filas).sort_values('outliers', ascending=False).reset_index(drop=True)
-    return resumen
-
-
-def detectar_outliers_iqr(df, columna):
-    """
-    Devuelve las filas consideradas outlier en una columna, usando
-    el criterio del rango intercuartílico (IQR): fuera de
-    [Q1 - 1.5*IQR, Q3 + 1.5*IQR].
-
-    Parameters
-    ----------
-    df : DataFrame
-    columna : str
-
-    Returns
-    -------
-    DataFrame con solo las filas outlier de esa columna.
-    """
-    q1 = df[columna].quantile(0.25)
-    q3 = df[columna].quantile(0.75)
-    iqr = q3 - q1
-    inferior = q1 - 1.5 * iqr
-    superior = q3 + 1.5 * iqr
-
-    outliers = df[(df[columna] < inferior) | (df[columna] > superior)]
-
-    print(f'Columna: {columna}')
-    print(f'Límite inferior: {inferior:.3f}  |  Límite superior: {superior:.3f}')
-    print(f'Outliers encontrados: {len(outliers)} ({len(outliers) / len(df) * 100:.2f}%)')
-
-    return outliers
-
-# outliers_campana = detectar_outliers_iqr(df, 'campana')
-# outliers_campana['campana'].describe()          # estadísticos solo de esos outliers
-# outliers_campana.to_csv('revisar_campana.csv')  # exportar para revisión manual
-# outliers_campana['campana'].sort_values(ascending=False).head(5)  # los 5 más extremos
-
-
-def eliminar_outliers_iqr(df, columna, umbral_aviso=10.0):
-    """
-    Elimina del DataFrame las filas consideradas outlier en una
-    columna (criterio IQR). A diferencia de capar_outliers_iqr(),
-    que solo recorta el valor, esta función BORRA la fila completa
-    — es una decisión más agresiva, ya que se pierde esa información.
-
-    Avisa si el % de outliers detectado supera umbral_aviso, porque
-    un porcentaje muy alto suele indicar que NO son errores de
-    captura, sino valores extremos reales (la variable tiene una
-    distribución con cola larga) — en ese caso, suele ser mejor usar
-    capar_outliers_iqr() en vez de eliminar filas.
-
-    Parameters
-    ----------
-    df : DataFrame
-    columna : str
-    umbral_aviso : float
-        % de outliers a partir del cual se muestra el aviso
-        (por defecto 10.0).
-
-    Returns
-    -------
-    DataFrame sin las filas outlier de esa columna.
-    """
-    q1 = df[columna].quantile(0.25)
-    q3 = df[columna].quantile(0.75)
-    iqr = q3 - q1
-    inferior = q1 - 1.5 * iqr
-    superior = q3 + 1.5 * iqr
-
-    es_outlier = (df[columna] < inferior) | (df[columna] > superior)
-    n_outliers = int(es_outlier.sum())
-    porcentaje = n_outliers / len(df) * 100
-
-    print(f'Columna: {columna}')
-    print(f'Límite inferior: {inferior:.3f}  |  Límite superior: {superior:.3f}')
-    print(f'Filas a eliminar: {n_outliers} ({porcentaje:.2f}%)')
-
-    if porcentaje > umbral_aviso:
-        print('-' * 70)
-        print(f'⚠ AVISO: el porcentaje de outliers supera el {umbral_aviso}%.')
-        print('  Esto suele indicar que NO son errores de captura, sino valores')
-        print('  extremos reales (distribución con cola larga). Antes de eliminar,')
-        print('  valora usar capar_outliers_iqr() para no perder tanta información.')
-        print('-' * 70)
-
-    return df[~es_outlier]
-
-def winsorizar_columnas(df, columnas, sufijo='_wz'):
-    """
-    'Winsoriza' una o varias columnas: en vez de eliminar los outliers,
-    los recorta (clip) a los límites del IQR. Crea una columna nueva
-    con el sufijo indicado (por defecto '_wz'), conservando la
-    original intacta para reportar cifras reales de negocio.
-
-    Ejemplo
-    -------
-    capar_outliers_iqr(df, ['campana', 'duracion'])
-    # crea 'campana_wz' y 'duracion_wz'
-    """
-    nuevo = df.copy()
-
-    if isinstance(columnas, str):
-        columnas = [columnas]
-
-    for col in columnas:
-        q1 = nuevo[col].quantile(0.25)
-        q3 = nuevo[col].quantile(0.75)
-        iqr = q3 - q1
-        inferior = q1 - 1.5 * iqr
-        superior = q3 + 1.5 * iqr
-
-        nuevo[f'{col}{sufijo}'] = nuevo[col].clip(inferior, superior)
-
-    return nuevo
-
-
-
-# ============================================================================
-# 8. VALIDACIÓN FINAL Y GUARDADO
+# 10. GUARDADO
 # ============================================================================
 
 def guardar_csv(df, ruta):
