@@ -894,14 +894,205 @@ def eliminar_filas(df, filas):
     indices = df.iloc[filas].index
     return df.drop(indices)
 
-# ============================================================================
-# 6.5.REGLAS DE NEGOCIO
-# ============================================================================
 
-""" 
-NO tiene función propia en este módulo: las reglas dependen de cada dataset, 
-consultar en sp_utils.py paso 23, sección "Reglas de negocio / coherencia entre columnas".    
-"""
+
+# ============================================================================
+# 8. TRATAR COLUMNAS BINARIAS ML
+# ============================================================================
+def crear_binaria_sn(df, columna):
+    """
+    Crea una versión categórica (_sn) de una variable binaria 0/1.
+
+    Pensada principalmente para variables objetivo utilizadas
+    posteriormente en EDA, tablas cruzadas, visualizaciones
+    y reporting.
+
+    Conversión estándar:
+        0 -> "no"
+        1 -> "si"
+
+    La columna original se conserva.
+
+    Parameters
+    ----------
+    df : DataFrame
+
+    columna : str
+        Nombre de la columna binaria.
+
+    Returns
+    -------
+    DataFrame
+        DataFrame con una nueva columna "{columna}_sn".
+
+    Ejemplo
+    --------
+    crear_binaria_sn(df, "sobrevivio_ml")
+
+    sobrevirio_ml    sobrevivio_sn
+    1                Sí
+    0                No
+    """
+    
+    nuevo = df.copy()
+
+    nuevo[f"{columna[:-3]}_sn"] = (
+        nuevo[columna]
+        .replace({
+            0: "no",
+            1: "si"
+        })
+    ).astype('str')
+
+    return nuevo
+
+
+def preparar_binaria_ml(df, columna, valor_imputacion=None):
+    """
+    Crea una versión "_ml" de una columna binaria (0/1) que contiene
+    nulos, lista para modelado: imputa los nulos y fuerza el tipo a
+    int estándar (sin nulos), dejando la columna original intacta
+    para trazabilidad. ya están en formato binario pero tienen nulos.
+
+    Pensada para columnas que ya son numéricas (0/1) pero tienen
+    valores nulos (ej. tras convertir_int() sobre un "unknown" que
+    se ha vuelto NaN) — no sirve para columnas de texto, para eso
+    usa crear_binaria_ml().
+
+    Parameters
+    ----------
+    df : DataFrame
+    columna : str
+        Nombre de la columna binaria (con nulos) a preparar.
+    valor_imputacion : int | float | None, default None
+        Valor con el que rellenar los nulos. Si es None, se usa la
+        moda de la columna. Indícalo explícitamente (ej. 0) si
+        prefieres decidir el valor tú mismo en vez de dejarlo a la
+        moda.
+
+    Returns
+    -------
+    DataFrame con una columna nueva "{columna}_ml", numérica y sin
+    nulos. La columna original no se modifica.
+
+    Avisa por consola
+    ------------------
+    - Nº y % de filas imputadas.
+    - Si el % imputado supera el 10%, un aviso adicional recordando
+      valorar si la ausencia del dato está relacionada con la
+      variable objetivo antes de asumir la moda sin más.
+
+    Ejemplo
+    -------
+    preparar_binaria_ml(df, 'impago')
+    preparar_binaria_ml(df, 'hipoteca', valor_imputacion=0)
+    """
+    nuevo = df.copy()
+
+    # Si se pasa una sola columna, la convertimos en lista
+    if isinstance(columna, str):
+        columnas = [columna]
+    else:
+        columnas = columna
+
+    for col in columnas:
+
+        if col not in nuevo.columns:
+            raise KeyError(f'La columna "{col}" no existe en el DataFrame.')
+
+        col_ml = f'{col}_ml'
+
+        n_nulos = nuevo[col].isna().sum()
+        porcentaje = n_nulos / len(nuevo) * 100
+
+        if valor_imputacion is None:
+            moda = nuevo[col].mode()
+
+            if moda.empty:
+                raise ValueError(
+                    f'No se puede calcular la moda de "{col}" porque '
+                    'la columna no tiene valores válidos.'
+                )
+
+            imputacion = moda.iloc[0]
+
+        else:
+            imputacion = valor_imputacion
+
+        nuevo[col_ml] = (
+            nuevo[col]
+            .fillna(imputacion)
+            .astype(int)
+        )
+
+        print(f'✓ Columna creada: "{col_ml}"')
+        print(
+            f'  Imputados: {n_nulos} '
+            f'({porcentaje:.2f}%) con valor {imputacion}'
+        )
+
+        if porcentaje > 10:
+            print(
+                f'  ⚠ AVISO: {porcentaje:.1f}% imputado es un porcentaje alto.'
+            )
+            print(
+                '    Valora si la ausencia del dato podría estar relacionada '
+                'con la variable objetivo.'
+            )
+
+    return nuevo
+
+def crear_binaria_ml(df, columna, mapeo):
+    """
+    Crea una versión "_ml" de una columna categórica de 2 valores,
+    mapeándola a 0/1 según el diccionario indicado. Conserva la
+    columna original intacta.
+
+    Pensada para columnas de texto SIN nulos que solo necesitan
+    traducirse a numérico (ej. 'objetivo': 'no'/'yes' -> 0/1) — si
+    la columna además tiene nulos, usa preparar_binaria_ml() o
+    combina ambos criterios según el caso.
+
+    Para varias columnas antes
+    for columna in columnas:
+    df_l = sl.crear_binaria_ml(df_l, columna)
+
+    Parameters
+    ----------
+    df : DataFrame
+    columna : str
+        Nombre de la columna categórica a mapear.
+    mapeo : dict
+        Diccionario {valor_original: valor_numerico}, ej.
+        {'no': 0, 'yes': 1}.
+
+    Returns
+    -------
+    DataFrame con una columna nueva "{columna}_ml". La columna
+    original no se modifica.
+
+    Avisa por consola
+    ------------------
+    - Si todos los valores se han mapeado correctamente.
+    - Si aparece algún valor no incluido en el diccionario (de lo
+      contrario se convertiría en NaN de forma silenciosa).
+
+    Ejemplo
+    -------
+    crear_binaria_ml(df, 'objetivo', {'no': 0, 'yes': 1})
+    """
+    nuevo = df.copy()
+    col_ml = f'{columna}_ml'
+
+    nuevo[col_ml] = nuevo[columna].map(mapeo)
+
+    no_mapeados = nuevo[nuevo[col_ml].isna() & nuevo[columna].notna()][columna].unique()
+    if len(no_mapeados) > 0:
+        print(f'⚠ Aviso: valores en "{columna}" no incluidos en el mapeo, se convirtieron en NaN: {list(no_mapeados)}')
+    else:
+        print(f'✓ Columna creada: "{col_ml}" — todos los valores mapeados correctamente.')
+
+    return nuevo
 
 # ============================================================================
 # 7. DETECTAR Y TRATAR OUTLIERS
@@ -1065,202 +1256,16 @@ def winsorizar_columnas(df, columnas, sufijo='_wz'):
     return nuevo
 
 # ============================================================================
-# 8. TRATAR COLUMNAS BINARIAS ML
+# 6.5.REGLAS DE NEGOCIO
 # ============================================================================
-def crear_binaria_sn(df, columna):
-    """
-    Crea una versión categórica (_sn) de una variable binaria 0/1.
 
-    Pensada principalmente para variables objetivo utilizadas
-    posteriormente en EDA, tablas cruzadas, visualizaciones
-    y reporting.
-
-    Conversión estándar:
-        0 -> "No"
-        1 -> "Sí"
-
-    La columna original se conserva.
-
-    Parameters
-    ----------
-    df : DataFrame
-
-    columna : str
-        Nombre de la columna binaria.
-
-    Returns
-    -------
-    DataFrame
-        DataFrame con una nueva columna "{columna}_sn".
-
-    Ejemplo
-    --------
-    crear_binaria_sn(df, "sobrevivio_ml")
-
-    sobrevirio_ml    sobrevivio_sn
-    1                Sí
-    0                No
-    """
-    
-    nuevo = df.copy()
-
-    nuevo[f"{columna[:-3]}_sn"] = (
-        nuevo[columna]
-        .replace({
-            0: "No",
-            1: "Sí"
-        })
-    ).astype('str')
-
-    return nuevo
+""" 
+NO tiene función propia en este módulo: las reglas dependen de cada dataset, 
+consultar en sp_utils.py paso 23, sección "Reglas de negocio / coherencia entre columnas".    
+"""
 
 
-def preparar_binaria_ml(df, columna, valor_imputacion=None):
-    """
-    Crea una versión "_ml" de una columna binaria (0/1) que contiene
-    nulos, lista para modelado: imputa los nulos y fuerza el tipo a
-    int estándar (sin nulos), dejando la columna original intacta
-    para trazabilidad. ya están en formato binario pero tienen nulos.
 
-    Pensada para columnas que ya son numéricas (0/1) pero tienen
-    valores nulos (ej. tras convertir_int() sobre un "unknown" que
-    se ha vuelto NaN) — no sirve para columnas de texto, para eso
-    usa crear_binaria_ml().
-
-    Parameters
-    ----------
-    df : DataFrame
-    columna : str
-        Nombre de la columna binaria (con nulos) a preparar.
-    valor_imputacion : int | float | None, default None
-        Valor con el que rellenar los nulos. Si es None, se usa la
-        moda de la columna. Indícalo explícitamente (ej. 0) si
-        prefieres decidir el valor tú mismo en vez de dejarlo a la
-        moda.
-
-    Returns
-    -------
-    DataFrame con una columna nueva "{columna}_ml", numérica y sin
-    nulos. La columna original no se modifica.
-
-    Avisa por consola
-    ------------------
-    - Nº y % de filas imputadas.
-    - Si el % imputado supera el 10%, un aviso adicional recordando
-      valorar si la ausencia del dato está relacionada con la
-      variable objetivo antes de asumir la moda sin más.
-
-    Ejemplo
-    -------
-    preparar_binaria_ml(df, 'impago')
-    preparar_binaria_ml(df, 'hipoteca', valor_imputacion=0)
-    """
-    nuevo = df.copy()
-
-    # Si se pasa una sola columna, la convertimos en lista
-    if isinstance(columna, str):
-        columnas = [columna]
-    else:
-        columnas = columna
-
-    for col in columnas:
-
-        if col not in nuevo.columns:
-            raise KeyError(f'La columna "{col}" no existe en el DataFrame.')
-
-        col_ml = f'{col}_ml'
-
-        n_nulos = nuevo[col].isna().sum()
-        porcentaje = n_nulos / len(nuevo) * 100
-
-        if valor_imputacion is None:
-            moda = nuevo[col].mode()
-
-            if moda.empty:
-                raise ValueError(
-                    f'No se puede calcular la moda de "{col}" porque '
-                    'la columna no tiene valores válidos.'
-                )
-
-            imputacion = moda.iloc[0]
-
-        else:
-            imputacion = valor_imputacion
-
-        nuevo[col_ml] = (
-            nuevo[col]
-            .fillna(imputacion)
-            .astype(int)
-        )
-
-        print(f'✓ Columna creada: "{col_ml}"')
-        print(
-            f'  Imputados: {n_nulos} '
-            f'({porcentaje:.2f}%) con valor {imputacion}'
-        )
-
-        if porcentaje > 10:
-            print(
-                f'  ⚠ AVISO: {porcentaje:.1f}% imputado es un porcentaje alto.'
-            )
-            print(
-                '    Valora si la ausencia del dato podría estar relacionada '
-                'con la variable objetivo.'
-            )
-
-    return nuevo
-
-def crear_binaria_ml(df, columna, mapeo):
-    """
-    Crea una versión "_ml" de una columna categórica de 2 valores,
-    mapeándola a 0/1 según el diccionario indicado. Conserva la
-    columna original intacta.
-
-    Pensada para columnas de texto SIN nulos que solo necesitan
-    traducirse a numérico (ej. 'objetivo': 'no'/'yes' -> 0/1) — si
-    la columna además tiene nulos, usa preparar_binaria_ml() o
-    combina ambos criterios según el caso.
-
-    Para varias columnas antes
-    for columna in columnas:
-    df_l = sl.crear_binaria_ml(df_l, columna)
-
-    Parameters
-    ----------
-    df : DataFrame
-    columna : str
-        Nombre de la columna categórica a mapear.
-    mapeo : dict
-        Diccionario {valor_original: valor_numerico}, ej.
-        {'no': 0, 'yes': 1}.
-
-    Returns
-    -------
-    DataFrame con una columna nueva "{columna}_ml". La columna
-    original no se modifica.
-
-    Avisa por consola
-    ------------------
-    - Si todos los valores se han mapeado correctamente.
-    - Si aparece algún valor no incluido en el diccionario (de lo
-      contrario se convertiría en NaN de forma silenciosa).
-
-    Ejemplo
-    -------
-    crear_binaria_ml(df, 'objetivo', {'no': 0, 'yes': 1})
-    """
-    nuevo = df.copy()
-    col_ml = f'{columna}_ml'
-
-    nuevo[col_ml] = nuevo[columna].map(mapeo)
-
-    no_mapeados = nuevo[nuevo[col_ml].isna() & nuevo[columna].notna()][columna].unique()
-    if len(no_mapeados) > 0:
-        print(f'⚠ Aviso: valores en "{columna}" no incluidos en el mapeo, se convirtieron en NaN: {list(no_mapeados)}')
-    else:
-        print(f'✓ Columna creada: "{col_ml}" — todos los valores mapeados correctamente.')
-
-    return nuevo
 
 # ============================================================================
 # 9. VALIDACION FINAL 

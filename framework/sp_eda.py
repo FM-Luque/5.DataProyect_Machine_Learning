@@ -118,7 +118,7 @@ pd.set_option('display.max_rows', None)
 
 
 # ============================================================================
-### 2️. EDA PRELIMINAR - EXPLORACION INICIAL DATASET
+### 2️. EXPLORACION INICIAL DATASET 
 # ============================================================================
 
 def exploracion(df,cols_excluir=None, n=3):
@@ -934,7 +934,7 @@ def barplot(df, col_cat, col_num, estimator="mean", errorbar=None,figsize=(10,5)
 
 
     # --------------------------------------------------
-    # BOXPLOT - BIVARIABLES cat-num
+    # BOXPLOT - BIVARIABLES cat-num COLUMNAS NUMERICAS
     # --------------------------------------------------
 
 def boxplot_bivar(df, col_cat, col_num,figsize=(10,5)):
@@ -962,7 +962,7 @@ def boxplot_bivar(df, col_cat, col_num,figsize=(10,5)):
     return None
 
     # --------------------------------------------------
-    # COUNTPLOT - HUE --- cat o num binarias + hue(cat) 
+    # COUNTPLOT - HUE --- cat o num binarias + hue(cat) COLUMNAS CATEGORICAS
     # --------------------------------------------------
 
 
