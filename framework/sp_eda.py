@@ -867,26 +867,43 @@ def chi2_objetivo(df, col_cat, tv):
 ### 4. EDA BIVARIANTE — (Analisis Bivariante)
 # ============================================================================
 
-    # --------------------------------------------------
-    # SCATTERPLOTS num - num 
-    # --------------------------------------------------
+# --------------------------------------------------
+# SCATTERPLOT num - num - hue
+# --------------------------------------------------
 
-def scatterplot(df, col_x, col_y):
+def scatterplot(df, col_x, col_y, hue=None):
     """
     Relación entre dos variables numéricas.
-    Dibuja un scatterplot y calcula la correlación de Pearson.
+    Si hue se indica, colorea los puntos por categoría.
+    Calcula la correlación de Pearson.
     """
-    sns.scatterplot(data=df, x=col_x, y=col_y, alpha=0.35)
+
+    plt.figure(figsize=(8, 5))
+
+    sns.scatterplot(
+        data=df,
+        x=col_x,
+        y=col_y,
+        hue=hue,
+        alpha=0.50
+    )
+
     plt.title(f"{col_x} vs {col_y}")
     plt.xlabel(col_x)
     plt.ylabel(col_y)
+
     plt.tight_layout()
     plt.show()
 
     r = df[col_x].corr(df[col_y])
-    print(f"Correlación de Pearson entre {col_x} y {col_y}: {r:.4f}")
+
+    print(
+        f"Correlación de Pearson entre "
+        f"{col_x} y {col_y}: {r:.4f}"
+    )
 
     return None
+
 
     # --------------------------------------------------
     # BARPLOTS  cat - num (media)
@@ -1228,105 +1245,52 @@ def matriz_correlacion(df, lista_cols_num=None, cols_excluir=None, top_n=10):
 
     return corr
 
-    # --------------------------------------------------
-    ###  COMPARACIÓN DE GRUPOS
-    # --------------------------------------------------
-
-def exploracion_grupos(df, col_control, metricas):
+def chi2_objetivo(df, col_cat, tv):
     """
-    Compara métricas numéricas entre los grupos definidos por una columna
-    de control. Devuelve una tabla resumida mucho más útil para el análisis
-    inferencial que un describe() completo.
+    Relación entre variables categóricas y la variable objetivo
+    mediante Chi-cuadrado.
+    Devuelve los p-values ordenados de menor a mayor
+    (variables más relacionadas primero).
 
     Parameters
     ----------
-    df : pandas.DataFrame
-        DataFrame a analizar.
+    df : pd.DataFrame
 
-    col_control : str
-        Columna categórica que define los grupos
-        (ej: sexo, embarque, acompanado, titulo).
+    col_cat : str | list[str]
+        Variable o lista de variables categóricas.
 
-    metricas : str o list
-        Métrica o lista de métricas numéricas a comparar
-        (ej: sobrevivio_ml, edad, tarifa, familia).
+    tv : str
+        Variable objetivo categórica.
 
     Returns
     -------
-    pandas.DataFrame
-
-    Para 2 grupos:
-        métrica | grupo_1 | grupo_2 | diferencia
-
-    La diferencia se calcula como:
-        grupo_2 - grupo_1
-
-    Para más de 2 grupos:
-        métrica | grupo_1 | grupo_2 | grupo_3 | ...
-
-    Examples
-    --------
-    exploracion_grupos(
-        titanic,
-        "sexo",
-        ["sobrevivio_ml", "edad", "tarifa", "familia"]
-    )
-
-    exploracion_grupos(
-        titanic,
-        "embarque",
-        "sobrevivio_ml"
-    )
+    pd.DataFrame
+        Tabla con los p-values ordenados.
     """
-    if isinstance(metricas, str):
-        metricas = [metricas]
 
-    grupos = list(df[col_control].unique())
+    if isinstance(col_cat, str):
+        col_cat = [col_cat]
 
-    filas = []
+    resultados = []
 
-    for metrica in metricas:
+    for col in col_cat:
 
-        fila = {"metrica": metrica}
+        tabla = pd.crosstab(df[col],df[tv])
+        _, pvalue, _, _ = stats.chi2_contingency(tabla)
 
-        for grupo in grupos:
+        resultados.append({"variable": col,"pvalue": round(pvalue, 5)})
 
-            valor = df.loc[
-                df[col_control] == grupo,
-                metrica
-            ].mean()
+    resultado = (
+        pd.DataFrame(resultados)
+        .sort_values("pvalue")
+        .reset_index(drop=True)
+        
+    )
+    print("* pvalue < 0.05 existe relacion con TV")
+    print("-"*30)
+    print(resultado)
 
-            fila[grupo] = round(valor, 2)
-
-        if len(grupos) == 2:
-
-            fila["diferencia"] = round(
-                fila[grupos[1]] - fila[grupos[0]],
-                2
-            )
-
-        else:
-
-            valores = [fila[g] for g in grupos]
-
-            fila["rango"] = round(
-                max(valores) - min(valores),
-                2
-            )
-
-        filas.append(fila)
-
-    resultado = pd.DataFrame(filas)
-
-    if len(grupos) > 2:
-        resultado = resultado.sort_values(
-            "rango",
-            ascending=False
-        )
-
-    display(resultado)
-
-    return None
+    return resultado
 
 
 
