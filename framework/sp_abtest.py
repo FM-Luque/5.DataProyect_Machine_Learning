@@ -332,6 +332,10 @@ def ttest_dos_grupos(df, col_control, lista_metricas):
     p ≥ 0.05  → no hay evidencia de diferencias significativas
     """
 
+    # Aceptar una métrica o varias
+    if isinstance(lista_metricas, str):
+        lista_metricas = [lista_metricas]
+
     for metrica in lista_metricas:
 
         valores_control = df[col_control].unique()
@@ -348,12 +352,14 @@ def ttest_dos_grupos(df, col_control, lista_metricas):
         else:
             print(f'Para la métrica {metrica.upper()}, las medias NO son iguales, es decir, SI hay diferencias significativas entre grupos')
 
-
 def mannwhitneyu(df, col_control, lista_metricas):
     """Rama: 2 grupos, no normal y/o no homocedástico. Compara medianas.
         p < 0.05  → hay evidencia de diferencias significativas
         p ≥ 0.05  → no hay evidencia de diferencias significativas
     """
+    # Aceptar una métrica o varias
+    if isinstance(lista_metricas, str):
+        lista_metricas = [lista_metricas]
 
     for metrica in lista_metricas:
 
@@ -372,32 +378,58 @@ def mannwhitneyu(df, col_control, lista_metricas):
             print(f'Para la métrica {metrica.upper()}, las medianas NO son iguales, es decir, SI hay deferencias significativas entre grupos')
 
 
-def anova_tukey(df, col_control, lista_metricas, alpha=0.05):
+
+def anova_tukey(df, lista_controles, lista_metricas, alpha=0.05):
     """Rama: 3+ grupos, normal, homocedástico. ANOVA + post-hoc Tukey
     si el ANOVA global sale significativo (dice qué pares difieren).
     
     p < 0.05  → hay evidencia de diferencias significativas
     p ≥ 0.05  → no hay evidencia de diferencias significativas
     """
+    if isinstance(lista_controles, str):
+        lista_controles = [lista_controles]
 
-    for metrica in lista_metricas:
+    if isinstance(lista_metricas, str):
+        lista_metricas = [lista_metricas]
 
-        grupos = [g[metrica].values for _, g in df.groupby(col_control)]
+    resultados = []
 
-        f_stat, pvalue = stats.f_oneway(*grupos)
+    for control in lista_controles:
 
-        print(f'F={f_stat:.4f}, p={pvalue:.4f}')
+        for metrica in lista_metricas:
 
-        if pvalue > 0.05:
-            print(f'Para la métrica {metrica.upper()}, las medias SI son iguales entre los grupos de {col_control} (ANOVA no significativo)')
-        else:
-            print(f'Para la métrica {metrica.upper()}, al menos un grupo de {col_control} tiene una media distinta (ANOVA significativo)')
-            print('Post-hoc Tukey (qué pares difieren):')
-            tukey = pairwise_tukeyhsd(df[metrica], df[col_control], alpha=alpha)
-            print(tukey.summary())
+            grupos = [
+                g[metrica].values
+                for _, g in df.groupby(control)
+            ]
 
+            f_stat, pvalue = stats.f_oneway(*grupos)
 
-def kruskal(df, col_control, lista_metricas):
+            resultados.append({
+                'control': control,
+                'metrica': metrica,
+                'F': round(f_stat, 4),
+                'pvalue': round(pvalue, 4),
+                'significativo': pvalue < alpha
+            })
+
+            if pvalue < alpha:
+
+                print(f'\n{"="*80}')
+                print(f'{control.upper()} | {metrica.upper()}')
+                print(f'{"="*80}')
+
+                tukey = pairwise_tukeyhsd(
+                    df[metrica],
+                    df[control],
+                    alpha=alpha
+                )
+
+                print(tukey.summary())
+
+    return pd.DataFrame(resultados)
+
+def kruskal(df, lista_controles, lista_metricas):
     """Rama: 3+ grupos, no normal y/o no homocedástico.
     Equivalente no paramétrico de ANOVA — cierra la 4ª rama del flujo,
     ya que mannwhitneyu() solo sirve para 2 grupos.
@@ -407,91 +439,154 @@ def kruskal(df, col_control, lista_metricas):
         p ≥ 0.05  → no hay evidencia de diferencias significativas
     """
 
-    for metrica in lista_metricas:
+    if isinstance(lista_controles, str):
+        lista_controles = [lista_controles]
 
-        grupos = [g[metrica].values for _, g in df.groupby(col_control)]
+    if isinstance(lista_metricas, str):
+        lista_metricas = [lista_metricas]
 
-        statistic, pvalue = stats.kruskal(*grupos)
+    resultados = []
 
-        print(f'H={statistic:.4f}, p={pvalue:.4f}')
+    for control in lista_controles:
 
-        if pvalue > 0.05:
-            print(f'Para la métrica {metrica.upper()}, las medianas SI son iguales entre los grupos de {col_control} (Kruskal-Wallis no significativo)')
-        else:
-            print(f'Para la métrica {metrica.upper()}, al menos un grupo de {col_control} tiene una mediana distinta (Kruskal-Wallis significativo)')
+        for metrica in lista_metricas:
 
+            grupos = [
+                g[metrica].values
+                for _, g in df.groupby(control)
+            ]
 
-def decidir_test(df, col_control, lista_metricas, n_max=5000, random_state=42, alpha=0.05):
-    """Orquestador: recorre el diagrama completo (normalidad -> homocedasticidad
-    -> nº de grupos) y llama automáticamente al test que corresponda para
-    cada métrica. Útil para no tener que decidir a mano cada vez."""
+            h, pvalue = stats.kruskal(*grupos)
 
-    n_grupos = df[col_control].nunique()
+            resultados.append({
+                'control': control,
+                'metrica': metrica,
+                'H': round(h, 4),
+                'pvalue': round(pvalue, 4),
+                'significativo': pvalue < 0.05
+            })
 
-    for metrica in lista_metricas:
-
-        datos_normalidad = df[metrica]
-        if len(datos_normalidad) > n_max:
-            datos_normalidad = datos_normalidad.sample(n_max, random_state=random_state)
-
-        es_normal = stats.shapiro(datos_normalidad)[1] > 0.05
-
-        grupos_vals = [g[metrica].values for _, g in df.groupby(col_control)]
-        es_homocedastico = stats.levene(*grupos_vals)[1] > 0.05
-
-        print(f'--- {metrica.upper()} | normalidad={es_normal} | homocedastico={es_homocedastico} | n_grupos={n_grupos} ---')
-
-        if es_normal and es_homocedastico and n_grupos == 2:
-            ttest_dos_grupos(df, col_control, [metrica])
-        elif es_normal and es_homocedastico and n_grupos > 2:
-            anova_tukey(df, col_control, [metrica], alpha=alpha)
-        elif n_grupos == 2:
-            mannwhitneyu(df, col_control, [metrica])
-        else:
-            kruskal(df, col_control, [metrica])
-
-        print('=' * 100)
+    return pd.DataFrame(resultados)
 
 
-# ============================================================================
-# 2. ANEXO — TESTS DE RELACIÓN ENTRE VARIABLES (no comparan grupos)
-# ============================================================================
 
-def intervalo_confianza_media(df, lista_metricas, confianza=0.95):
-    """IC para la media de cada métrica (por defecto al 95%)."""
+def decidir_test(
+    df,
+    lista_controles,
+    lista_metricas,
+    n_max=5000,
+    random_state=42,
+    alpha=0.05
+):
+    """
+    Decide automáticamente qué test aplicar
+    según normalidad, homocedasticidad y nº de grupos.
 
-    for metrica in lista_metricas:
-        media = df[metrica].mean()
-        sem = stats.sem(df[metrica])
-        ic = stats.t.interval(confianza, len(df[metrica]) - 1, loc=media, scale=sem)
-        print(f'{metrica.upper()} -> media={media:.2f}  IC {int(confianza*100)}%=({ic[0]:.2f}, {ic[1]:.2f})')
+    Devuelve DataFrame resumen.
+    """
 
+    import pandas as pd
+    from scipy import stats
 
-def chi_cuadrado_independencia(df, col_a, col_b):
-    """Chi-cuadrado de independencia entre dos variables categóricas."""
+    if isinstance(lista_controles, str):
+        lista_controles = [lista_controles]
 
-    tabla = pd.crosstab(df[col_a], df[col_b])
-    chi2, pvalue, dof, expected = stats.chi2_contingency(tabla)
+    if isinstance(lista_metricas, str):
+        lista_metricas = [lista_metricas]
 
-    print(f'chi2={chi2:.3f}, p={pvalue:.4f}, dof={dof}')
-    if pvalue < 0.05:
-        print(f'SI hay relación entre {col_a} y {col_b}')
-    else:
-        print(f'NO hay evidencia de relación entre {col_a} y {col_b}')
+    resultados = []
 
+    for control in lista_controles:
 
-def correlacion_regresion(df, col_x, col_y):
-    """Correlación (Pearson y Spearman) + regresión lineal simple col_y ~ col_x.
-    Recuerda: si una variable es a nivel cliente, agrégala primero por id_cliente."""
+        n_grupos = df[control].nunique()
 
-    r_pearson, p_pearson = stats.pearsonr(df[col_x], df[col_y])
-    r_spearman, p_spearman = stats.spearmanr(df[col_x], df[col_y])
-    print(f'Pearson r={r_pearson:.3f} (p={p_pearson:.4f})')
-    print(f'Spearman rho={r_spearman:.3f} (p={p_spearman:.4f})')
+        for metrica in lista_metricas:
 
-    modelo = smf.ols(f'{col_y} ~ {col_x}', data=df).fit()
-    print(modelo.summary())
-    return modelo
+            # -----------------------
+            # Normalidad
+            # -----------------------
+
+            datos_normalidad = df[metrica]
+
+            if len(datos_normalidad) > n_max:
+                datos_normalidad = datos_normalidad.sample(
+                    n=n_max,
+                    random_state=random_state
+                )
+
+            p_normalidad = stats.shapiro(
+                datos_normalidad
+            )[1]
+
+            es_normal = p_normalidad > alpha
+
+            # -----------------------
+            # Homocedasticidad
+            # -----------------------
+
+            grupos_vals = [
+                g[metrica].values
+                for _, g in df.groupby(control)
+            ]
+
+            p_levene = stats.levene(
+                *grupos_vals
+            )[1]
+
+            es_homocedastico = p_levene > alpha
+
+            # -----------------------
+            # Decisión
+            # -----------------------
+
+            if es_normal and es_homocedastico and n_grupos == 2:
+
+                stat, pvalue = stats.ttest_ind(
+                    *grupos_vals,
+                    equal_var=False
+                )
+
+                test = "ttest"
+
+            elif es_normal and es_homocedastico and n_grupos > 2:
+
+                stat, pvalue = stats.f_oneway(
+                    *grupos_vals
+                )
+
+                test = "anova"
+
+            elif n_grupos == 2:
+
+                stat, pvalue = stats.mannwhitneyu(
+                    *grupos_vals,
+                    alternative="two-sided"
+                )
+
+                test = "mannwhitney"
+
+            else:
+
+                stat, pvalue = stats.kruskal(
+                    *grupos_vals
+                )
+
+                test = "kruskal"
+
+            resultados.append({
+                'control': control,
+                'metrica': metrica,
+                'test': test,
+                'estadistico': round(stat, 4),
+                'pvalue': round(pvalue, 4),
+                'normal': es_normal,
+                'homocedastico': es_homocedastico,
+                'n_grupos': n_grupos,
+                'significativo': pvalue < alpha
+            })
+
+    return pd.DataFrame(resultados)
+
 
 
 
