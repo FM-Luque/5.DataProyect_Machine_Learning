@@ -8,7 +8,7 @@ FLUJO RECOMENDADO
 1. Cargar datos + copy()
 2. Analisis inicial
     clasificar_columnas()
-3. Ppreparacion de datos
+3. Preparacion de datos
     preparacion_dataframe()
 4. Separar variables
     separar_xy()
@@ -64,45 +64,25 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import (
-    train_test_split,
-    GridSearchCV
-)
+from sklearn.model_selection import (train_test_split,GridSearchCV)
 
-from sklearn.preprocessing import (
-    StandardScaler
-)
+from sklearn.preprocessing import (StandardScaler)
 
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score,
+from sklearn.metrics import (mean_absolute_error,mean_squared_error,r2_score,
+    accuracy_score,precision_score,recall_score,f1_score,confusion_matrix,
+    classification_report)
 
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-
-    confusion_matrix,
-    classification_report
-)
-
-from sklearn.linear_model import (
-    LinearRegression, 
-    LogisticRegression, 
-    Ridge, 
-    Lasso, 
-    ElasticNet)
+from sklearn.linear_model import (LinearRegression,LogisticRegression,Ridge,Lasso,ElasticNet)
 
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-
 
 # Para que se muestren todas las columnas al inspeccionar los DataFrames
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 2000)
 pd.set_option('display.expand_frame_repr', False)
 pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
 
 """
 # ==========================================================
@@ -257,14 +237,25 @@ def preparacion_dataframe(
 
 def separar_xy(df, objetivo):
     """
+    df - dataframe especifico (origen - excluir)
+    objetivo - tv
     Separa DataFrame en X (predictoras)
     e y (objetivo).
+    
+    Comprobacion: 
+    print(X.shape)
+    print(y.shape)
+
+    display(X.head())
+    display(y.head())
     """
 
     X = df.drop(columns=[objetivo])
     y = df[objetivo]
 
     return X, y
+
+
 
 
 # ============================================================================
