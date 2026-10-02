@@ -41,27 +41,86 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score
-)
+from sklearn.metrics import (mean_absolute_error,mean_squared_error,r2_score)
 
 from statsmodels.tsa.stattools import adfuller
 
 from statsmodels.tsa.seasonal import seasonal_decompose
 
-from statsmodels.graphics.tsaplots import (
-    plot_acf,
-    plot_pacf
-)
+from statsmodels.graphics.tsaplots import (plot_acf,plot_pacf)
 
 from statsmodels.tsa.arima.model import ARIMA
 
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-pd.set_option("display.max_columns", None)
-pd.set_option("display.width", 2000)
+# Para que se muestren todas las columnas al inspeccionar los DataFrames
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 2000)
+pd.set_option('display.expand_frame_repr', False)
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
+
+
+# ==========================================================
+# 1. Cargar dataframes
+# ==========================================================
+
+def cargar_csv(
+    ruta,
+    parse_dates=None,
+    squeeze=False,
+    **kwargs
+):
+    """    
+    Lee un archivo csv y avisa si no lo encuentra, en vez de dar
+    un error de Python difícil de entender.
+
+    Parameters
+    ----------
+    ruta : str
+        Ruta al archivo csv.
+    parse_dates : list, opcional
+        Columnas a interpretar como fecha (ej. ['fecha_pedido']).
+    squeeze = True: 
+        Elimina columna en y    
+    kwargs :
+        Argumentos adicionales que acepta pd.read_csv().
+
+    Returns
+    -------
+    DataFrame, o None si el archivo no existe.
+    """
+
+    try:
+        df = pd.read_csv(
+            ruta,
+            parse_dates=parse_dates,
+            **kwargs
+        )
+
+    except FileNotFoundError:
+        print(f'No se ha encontrado el archivo: {ruta}')
+        print('Revisa que la ruta sea correcta.')
+        return None
+
+    if squeeze and df.shape[1] == 1:
+        df = df.squeeze()
+
+    print('=' * 70)
+    print('CSV CARGADO')
+    print('=' * 70)
+    print(f'Archivo: {ruta}')
+    print(f'Filas:   {df.shape[0]}')
+
+    if isinstance(df, pd.DataFrame):
+        print(f'Columnas: {df.shape[1]}')
+    else:
+        print('Columnas: 1 (Series)')
+
+    print('=' * 70)
+
+    return df
+
 
 # ==========================================================
 # 1. PREPARACIÓN
@@ -72,7 +131,7 @@ def check_continuity(
     fecha_col
 ):
     """
-    Comprueba continuidad temporal.
+    Comprueba continuidad temporal, si hay huecos.
     """
 
     fechas = pd.to_datetime(df[fecha_col])
@@ -89,6 +148,19 @@ def fill_date_gaps(
 ):
     """
     Rellena huecos temporales.
+        # D -> Diario
+        # W -> Semanal
+        # MS -> Inicio de mes (Month Start)
+        # M -> Fin de mes (Month End)
+        # QS -> Inicio de trimestre (Quarter Start)
+        # Q -> Fin de trimestre (Quarter End)
+         
+        # YS -> Inicio de año (Year Start)
+        # Y -> Fin de año (Year End)
+         
+        # H -> Horario
+        # min -> Minutos
+        # S -> Segundos
     """
 
     df = df.copy()
@@ -178,8 +250,7 @@ def descomponer_serie(serie, modelo="additive", periodo=None):
 
     return descomposicion
 
-
-def graficos_autocorrelacion(serie, lags=40):
+def graficos_autocorrelacion(serie,lags=40):
     """
     Representa ACF (autocorrelación) y PACF (autocorrelación
     parcial) uno al lado del otro — se usan juntos para elegir a
@@ -196,16 +267,32 @@ def graficos_autocorrelacion(serie, lags=40):
         Número de retardos a mostrar (por defecto 40).
     """
 
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+    max_lags = min(
+        lags,
+        len(serie) // 2 - 1
+    )
 
-    plot_acf(serie.dropna(), lags=lags, ax=ax[0])
-    ax[0].set_title("ACF (autocorrelación)")
+    fig, ax = plt.subplots(
+        1,
+        2,
+        figsize=(12, 4)
+    )
 
-    plot_pacf(serie.dropna(), lags=lags, ax=ax[1])
-    ax[1].set_title("PACF (autocorrelación parcial)")
+    plot_acf(
+        serie.dropna(),
+        lags=max_lags,
+        ax=ax[0]
+    )
+
+    plot_pacf(
+        serie.dropna(),
+        lags=max_lags,
+        ax=ax[1]
+    )
 
     plt.tight_layout()
     plt.show()
+
 
 # ==========================================================
 # 2. TRAIN TEST
