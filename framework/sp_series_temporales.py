@@ -366,6 +366,7 @@ def forecast(
 ):
     """
     Predicción futura.
+    pasos = numero meses predicion 
     """
 
     return modelo.forecast(
