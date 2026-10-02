@@ -428,7 +428,8 @@ def train_test(
 ):
     """
     División train/test.
-    
+    X_train, X_test, y_train, y_test = sm.train_test(
+
     Clasificación → estratificar=True
     Regresión → estratificar=False
     
@@ -454,6 +455,13 @@ def estandarizar(
 ):
     """
     Estandarización mediante StandardScaler.
+    columnas_escalar suelen ser las columnas continuas.
+
+    X_train_reg, X_test_reg, scaler_reg = sm.estandarizar(
+        X_train_reg,
+        X_test_reg,
+        columnas=columnas_escalar)
+
     """
 
     scaler = StandardScaler()
@@ -493,12 +501,9 @@ def entrenar_evaluar_clasificacion(
     Entrena y evalúa un modelo de clasificación.
 
     Ejemplo uso 
-    modelo = LogisticRegression(
-    max_iter=1000,
-    random_state=42
-    )
- 
-    modelo, metricas, y_pred = (sm.entrenar_evaluar_clasificacion(modelo,X_train,X_test,y_train,y_test))
+    VER MODELOS EN INDICE
+    # MODELOS DE REGRESIÓN
+     modelo, metricas, y_pred = (sm.entrenar_evaluar_clasificacion(modelo,X_train,X_test,y_train,y_test))
 
     """
     modelo.fit(
@@ -1242,3 +1247,140 @@ def cargar_modelo(
     )
 
     return modelo
+
+# ============================================================================
+# 19. GUARDAR CVS REGRESION/CLASIFICACION
+# ============================================================================
+
+def guardar_csv(df, ruta):
+    """
+    Guarda el DataFrame en csv, listo para usarse en Python, Power BI
+    o Excel sin problemas de codificación.
+
+    Usa encoding='utf-8-sig' (UTF-8 con marca BOM): necesario para que
+    programas como Power BI o Excel interpreten bien tildes y eñes.
+    Sin esto, "sevilla" puede leerse mal fuera de Python.
+
+    Parameters
+    ----------
+    df : DataFrame
+    ruta : str
+        Ruta de destino, ej. '../data/processed/X_reg.csv'
+    """
+    try:
+        df.to_csv(ruta, index=False, encoding='utf-8-sig')
+
+    except FileNotFoundError:
+        print(f'No se ha encontrado el archivo: {ruta}')
+        print('Revisa que la ruta sea correcta.')
+        return None
+    
+    print('=' * 70)
+    print('ARCHIVO GUARDADO')
+    print('=' * 70)
+    print(f'Ruta:     {ruta}')
+    print(f'Filas:    {df.shape[0]}')
+    try:
+        print(f'Columnas: {df.shape[1]}')
+    except IndexError:
+        pass
+    print('=' * 70)
+
+
+# ============================================================================
+# 20. CARGAR CSV REGRESION/CLASIFICASION
+# ============================================================================
+
+def cargar_csv(ruta, parse_dates=None, **kwargs):
+    """
+    Lee un archivo csv y avisa si no lo encuentra, en vez de dar
+    un error de Python difícil de entender.
+
+    Parameters
+    ----------
+    ruta : str
+        Ruta al archivo csv.
+    parse_dates : list, opcional
+        Columnas a interpretar como fecha (ej. ['fecha_pedido']).
+    kwargs :
+        Argumentos adicionales que acepta pd.read_csv().
+
+    Returns
+    -------
+    DataFrame, o None si el archivo no existe.
+    """
+    try:
+        df = pd.read_csv(ruta, parse_dates=parse_dates, **kwargs)
+    except FileNotFoundError:
+        print(f'No se ha encontrado el archivo: {ruta}')
+        print('Revisa que la ruta sea correcta.')
+        return None
+
+    print('=' * 70)
+    print('CSV CARGADO')
+    print('=' * 70)
+    print(f'Archivo: {ruta}')
+    print(f'Filas:   {df.shape[0]}')
+    try:
+        print(f'Columnas: {df.shape[1]}')
+    except IndexError:
+        pass
+    print('=' * 70)
+
+    return df
+
+def cargar_csv(
+    ruta,
+    parse_dates=None,
+    squeeze=False,
+    **kwargs
+):
+    """    
+    Lee un archivo csv y avisa si no lo encuentra, en vez de dar
+    un error de Python difícil de entender.
+
+    Parameters
+    ----------
+    ruta : str
+        Ruta al archivo csv.
+    parse_dates : list, opcional
+        Columnas a interpretar como fecha (ej. ['fecha_pedido']).
+    squeeze = True: 
+        Elimina columna en y    
+    kwargs :
+        Argumentos adicionales que acepta pd.read_csv().
+
+    Returns
+    -------
+    DataFrame, o None si el archivo no existe.
+    """
+
+    try:
+        df = pd.read_csv(
+            ruta,
+            parse_dates=parse_dates,
+            **kwargs
+        )
+
+    except FileNotFoundError:
+        print(f'No se ha encontrado el archivo: {ruta}')
+        print('Revisa que la ruta sea correcta.')
+        return None
+
+    if squeeze and df.shape[1] == 1:
+        df = df.squeeze()
+
+    print('=' * 70)
+    print('CSV CARGADO')
+    print('=' * 70)
+    print(f'Archivo: {ruta}')
+    print(f'Filas:   {df.shape[0]}')
+
+    if isinstance(df, pd.DataFrame):
+        print(f'Columnas: {df.shape[1]}')
+    else:
+        print('Columnas: 1 (Series)')
+
+    print('=' * 70)
+
+    return df
